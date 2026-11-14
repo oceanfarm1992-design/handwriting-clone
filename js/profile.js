@@ -52,7 +52,7 @@ export async function deserialize(json) {
       pad: +g.pad || 0,
       inkH: +g.inkH || img.height,
       inkW: +g.inkW || img.width,
-      src: g.src === 'draw' ? 'draw' : 'scan',
+      src: ['draw', 'photo'].includes(g.src) ? g.src : 'scan',
       ...(Array.isArray(g.strokes) ? { strokes: g.strokes } : {}),
     });
   }
