@@ -64,8 +64,30 @@ export function cmpVersion(a, b) {
   return 0;
 }
 
-/** Append a section to the GitHub Actions job summary (or print it locally). */
+/**
+ * Make text that came from the internet (advisory summaries, error messages) safe to put in a
+ * Markdown report or issue: one line, no HTML, links, images, mentions or code fences, bounded length.
+ */
+export function clean(text, max = 200) {
+  return String(text ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/[<>[\]()`*_|#@!\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+/** Print a report, and add it to the GitHub Actions job summary when running there. */
 export function summary(md) {
+  console.log(md);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
-  else console.log(md);
+}
+
+/** True when the URL points at exactly this host (not a look-alike that merely contains it). */
+export function isHost(url, host) {
+  try {
+    return new URL(url).hostname === host;
+  } catch {
+    return false;
+  }
 }

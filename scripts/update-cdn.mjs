@@ -8,7 +8,7 @@
 // only reported, because they can change file layouts and APIs and need a person to test them.
 // With --check nothing is written. Sets the GitHub output `changed`.
 import fs from 'node:fs';
-import { LIBS_FILE, readLibs, parseCdn, get, sri, cmpVersion, summary } from './lib.mjs';
+import { LIBS_FILE, readLibs, parseCdn, get, sri, cmpVersion, summary, clean } from './lib.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -33,9 +33,9 @@ const updates = [];
 const majors = [];
 const problems = [];
 for (const [pkg, { version, entries }] of byPkg) {
-  const res = await get(`https://registry.npmjs.org/${pkg.replace('/', '%2f')}`);
+  const res = await get(`https://registry.npmjs.org/${pkg.replace(/\//g, '%2f')}`);
   if (!res.ok) {
-    problems.push(`${pkg}: registry returned HTTP ${res.status}`);
+    problems.push(`${pkg}: registry returned HTTP ${Number(res.status)}`);
     continue;
   }
   const doc = await res.json();
@@ -55,7 +55,7 @@ for (const [pkg, { version, entries }] of byPkg) {
     const url = e.lib.url.replace(`${pkg}@${version}/`, `${pkg}@${target}/`);
     const head = await get(url, { method: 'HEAD' });
     if (!head.ok) {
-      problems.push(`${pkg}@${target}: ${e.file} is missing (HTTP ${head.status}); skipped`);
+      problems.push(`${pkg}@${clean(target, 20)}: ${e.file} is missing (HTTP ${Number(head.status)}); skipped`);
       ok = false;
       break;
     }
@@ -64,12 +64,20 @@ for (const [pkg, { version, entries }] of byPkg) {
   if (ok) updates.push({ pkg, from: version, to: target, published: doc.time[target], next });
 }
 
+// Only strictly shaped values from the registry and CDN are ever written into the source file.
+const SAFE_VERSION = /^\d{1,6}\.\d{1,6}\.\d{1,6}$/;
+const SAFE_SRI = /^sha384-[A-Za-z0-9+/]{64}$/;
 if (updates.length && !CHECK) {
   let text = fs.readFileSync(LIBS_FILE, 'utf8');
   for (const u of updates) {
-    for (const { e, url, integrity } of u.next) {
+    if (!SAFE_VERSION.test(u.to)) throw new Error(`refusing unexpected version string for ${u.pkg}`);
+    for (const { e, integrity } of u.next) {
+      const url = e.lib.url.replace(`${u.pkg}@${u.from}/`, `${u.pkg}@${u.to}/`);
       text = text.replace(e.lib.url, url);
-      if (integrity) text = text.replace(e.lib.integrity, integrity);
+      if (integrity) {
+        if (!SAFE_SRI.test(integrity)) throw new Error(`refusing unexpected integrity value for ${u.pkg}`);
+        text = text.replace(e.lib.integrity, integrity);
+      }
     }
   }
   fs.writeFileSync(LIBS_FILE, text);
@@ -78,11 +86,11 @@ if (updates.length && !CHECK) {
 const lines = ['## CDN library updates', ''];
 if (updates.length) {
   lines.push(CHECK ? 'Available (not applied, check mode):' : 'Applied:', '');
-  for (const u of updates) lines.push(`- **${u.pkg}** ${u.from} → ${u.to} (released ${u.published.slice(0, 10)}); integrity hashes recomputed`);
+  for (const u of updates) lines.push(`- **${u.pkg}** ${u.from} → ${u.to} (released ${clean(u.published, 10)}); integrity hashes recomputed`);
 } else lines.push(`All libraries are on the newest release of their major version that is at least ${MIN_AGE_DAYS} days old.`);
 if (majors.length) {
   lines.push('', '### New major versions (need a person to test)', '');
-  for (const m of majors) lines.push(`- **${m.pkg}** ${m.version} → ${m.latest}`);
+  for (const m of majors) lines.push(`- **${m.pkg}** ${m.version} → ${clean(m.latest, 20)}`);
 }
 if (problems.length) lines.push('', '### Problems', '', ...problems.map((p) => `- ${p}`));
 const md = lines.join('\n');

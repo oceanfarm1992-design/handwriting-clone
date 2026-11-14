@@ -13,7 +13,7 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, readLibs, parseCdn, externalUrls, get, sri, summary } from './lib.mjs';
+import { ROOT, readLibs, parseCdn, externalUrls, get, sri, summary, clean, isHost } from './lib.mjs';
 
 const REPORT = process.argv.includes('--report') ? process.argv[process.argv.indexOf('--report') + 1] : null;
 const ALLOWED_HOSTS = new Set([
@@ -47,7 +47,7 @@ for (const { pkg, version } of pkgs.values()) {
     body: JSON.stringify({ package: { name: pkg, ecosystem: 'npm' }, version }),
   });
   if (!res.ok) {
-    fails.push(`OSV lookup for ${pkg}@${version} failed: HTTP ${res.status}`);
+    fails.push(`OSV lookup for ${pkg}@${version} failed: HTTP ${Number(res.status)}`);
     continue;
   }
   const vulns = (await res.json()).vulns || [];
@@ -55,8 +55,8 @@ for (const { pkg, version } of pkgs.values()) {
   for (const v of vulns) {
     const ids = [v.id, ...(v.aliases || [])];
     const ok = accepted.find((a) => a.package === pkg && ids.includes(a.id) && (!a.version || a.version === version));
-    if (ok) warns.push(`${pkg}@${version}: ${v.id} accepted until ${ok.reviewBy} (${ok.reason})`);
-    else open.push(`${v.id}${v.aliases?.length ? ` (${v.aliases.join(', ')})` : ''}: ${v.summary || 'no summary'}`);
+    if (ok) warns.push(`${pkg}@${version}: ${clean(v.id, 40)} accepted until ${ok.reviewBy} (${clean(ok.reason)})`);
+    else open.push(`${clean(v.id, 40)}${v.aliases?.length ? ` (${clean(v.aliases.join(', '), 80)})` : ''}: ${clean(v.summary || 'no summary')}`);
   }
   if (open.length) fails.push(`${pkg}@${version} has known vulnerabilities:\n  - ${open.join('\n  - ')}`);
   else passes.push(`${pkg}@${version}: no open known vulnerabilities`);
@@ -64,9 +64,9 @@ for (const { pkg, version } of pkgs.values()) {
 
 // ---- 2. external URLs
 const urls = externalUrls();
-const badHost = urls.filter(({ url }) => !ALLOWED_HOSTS.has(new URL(url).hostname));
+const badHost = urls.filter(({ url }) => ![...ALLOWED_HOSTS].some((h) => isHost(url, h)));
 if (badHost.length) fails.push(`External URLs to hosts that are not approved:\n  - ${badHost.map((u) => `${u.file}: ${u.url}`).join('\n  - ')}`);
-const unpinned = urls.filter(({ url }) => url.includes('cdn.jsdelivr.net/') && !/@\d+\.\d+\.\d+\//.test(url));
+const unpinned = urls.filter(({ url }) => isHost(url, 'cdn.jsdelivr.net') && !/@\d+\.\d+\.\d+\//.test(new URL(url).pathname));
 if (unpinned.length) fails.push(`CDN URLs without an exact version:\n  - ${unpinned.map((u) => `${u.file}: ${u.url}`).join('\n  - ')}`);
 if (!badHost.length && !unpinned.length) passes.push(`${urls.length} external URLs: approved hosts, CDN versions pinned`);
 
@@ -80,7 +80,7 @@ for (const [key, lib] of Object.entries(libs)) {
   if (got !== lib.integrity) fails.push(`${key}: the CDN now serves a different file than the one pinned (integrity ${got})`);
   else passes.push(`${key}: integrity hash matches`);
 }
-const looseScripts = urls.filter(({ file, url }) => file !== 'js/cdn-libs.js' && url.includes('cdn.jsdelivr.net/'));
+const looseScripts = urls.filter(({ file, url }) => file !== 'js/cdn-libs.js' && isHost(url, 'cdn.jsdelivr.net'));
 if (looseScripts.length) fails.push(`CDN URLs outside js/cdn-libs.js (they bypass integrity checks):\n  - ${looseScripts.map((u) => `${u.file}: ${u.url}`).join('\n  - ')}`);
 
 // ---- 4. secrets
@@ -95,10 +95,20 @@ const SECRET_PATTERNS = [
   ['Private key', /-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/],
 ];
 const secretHits = [];
+const readSmall = (f) => {
+  let fd;
+  try {
+    fd = fs.openSync(path.join(ROOT, f), 'r');
+    return fs.fstatSync(fd).size > 2e6 ? null : fs.readFileSync(fd, 'utf8');
+  } catch {
+    return null; // deleted in the working tree, or unreadable
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+};
 for (const f of tracked) {
-  const full = path.join(ROOT, f);
-  if (!fs.existsSync(full) || fs.statSync(full).size > 2e6) continue;
-  const text = fs.readFileSync(full, 'utf8');
+  const text = readSmall(f);
+  if (text === null) continue;
   for (const [name, re] of SECRET_PATTERNS) if (re.test(text)) secretHits.push(`${f}: looks like a ${name}`);
 }
 if (secretHits.length) fails.push(`Possible secrets committed:\n  - ${secretHits.join('\n  - ')}`);
@@ -107,7 +117,7 @@ else passes.push(`${tracked.length} tracked files: no secrets found`);
 // ---- 5. personal handwriting must never be published
 const personal = tracked.filter(
   (f) => f.startsWith('my-handwriting/') || /\.(jpe?g|png|heic|webp|gif|bmp|tiff?)$/i.test(f) ||
-    (f.endsWith('.json') && /"app"\s*:\s*"handwriting-clone"/.test(fs.readFileSync(path.join(ROOT, f), 'utf8'))),
+    (f.endsWith('.json') && /"app"\s*:\s*"handwriting-clone"/.test(readSmall(f) || '')),
 );
 if (personal.length) fails.push(`Files that may hold someone's handwriting are committed to this public repository:\n  - ${personal.join('\n  - ')}`);
 else passes.push('No handwriting photos, scans or profiles committed');
@@ -115,7 +125,7 @@ else passes.push('No handwriting photos, scans or profiles committed');
 // ---- 6. eval-style code
 const evalHits = [];
 for (const f of tracked.filter((x) => x.startsWith('js/'))) {
-  const text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const text = readSmall(f) || '';
   for (const [name, re] of [['eval()', /\beval\s*\(/], ['new Function()', /\bnew\s+Function\s*\(/], ['document.write()', /document\.write\s*\(/]]) {
     if (re.test(text)) evalHits.push(`${f}: ${name}`);
   }

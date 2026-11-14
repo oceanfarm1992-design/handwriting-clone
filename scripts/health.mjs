@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, readLibs, get, sri, summary } from './lib.mjs';
+import { ROOT, readLibs, get, sri, summary, clean } from './lib.mjs';
 
 const args = process.argv.slice(2);
 const opt = (n) => (args.includes(n) ? args[args.indexOf(n) + 1] : null);
@@ -26,7 +26,7 @@ const check = async (name, fn) => {
     const note = await fn();
     passes.push(note ? `${name}: ${note}` : name);
   } catch (e) {
-    fails.push(`${name}: ${e.message}`);
+    fails.push(`${name}: ${clean(e.message, 400)}`);
   }
 };
 

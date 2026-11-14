@@ -10,7 +10,7 @@ import http from 'node:http';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, summary } from './lib.mjs';
+import { ROOT, summary, clean } from './lib.mjs';
 
 const REPORT = process.argv.includes('--report') ? process.argv[process.argv.indexOf('--report') + 1] : null;
 // resolve Playwright from the directory the test is run in (CI installs it there without saving it)
@@ -44,7 +44,7 @@ try {
       steps.push(`✅ ${name}${note ? `: ${note}` : ''}`);
     } catch (e) {
       failed = true;
-      steps.push(`❌ ${name}: ${e.message.split('\n')[0]}`);
+      steps.push(`❌ ${name}: ${clean(e.message.split('\n')[0], 400)}`);
     }
   };
 
