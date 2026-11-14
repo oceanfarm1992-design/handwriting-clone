@@ -36,7 +36,24 @@ export async function loadJsPdf() {
 const clean = (s) => s.replace(/\s+/g, ' ').replace(/\|/g, '/').trim();
 const pipeRow = (cells) => `| ${cells.join(' | ')} |`;
 
-/** Convert mammoth's HTML into plain text with pipe tables and simple lists. */
+/** Text of an element, with bold/underlined runs marked __like this__ (drawn as pen underlines). */
+function inline(node) {
+  const walk = (n) => {
+    let s = '';
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) s += c.textContent;
+      else if (c.nodeType === 1) {
+        const t = c.tagName.toLowerCase();
+        const inner = walk(c);
+        s += ['strong', 'b', 'u'].includes(t) && inner.trim() ? ` __${inner.trim()}__ ` : t === 'br' ? ' ' : inner;
+      }
+    }
+    return s;
+  };
+  return walk(node).replace(/\s+/g, ' ').replace(/ ([,.;:!?])/g, '$1').trim();
+}
+
+/** Convert mammoth's HTML into plain text with pipe tables, lists, # headings and __underlines__. */
 export function htmlToText(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const out = [];
@@ -54,10 +71,13 @@ export function htmlToText(html) {
         }
         blank();
       } else if (tag === 'ul' || tag === 'ol') {
-        [...el.children].forEach((li, i) => out.push(`${tag === 'ol' ? `${i + 1}.` : '-'} ${clean(li.textContent)}`));
+        [...el.children].forEach((li, i) => out.push(`${tag === 'ol' ? `${i + 1}.` : '-'} ${inline(li)}`));
         blank();
-      } else if (/^h[1-6]$/.test(tag) || tag === 'p') {
-        const t = el.textContent.replace(/[ \t]+/g, ' ').trim();
+      } else if (/^h[1-6]$/.test(tag)) {
+        const t = clean(el.textContent);
+        if (t) out.push(`# ${t}`, '');
+      } else if (tag === 'p') {
+        const t = inline(el);
         if (t) out.push(t);
         out.push('');
       } else {

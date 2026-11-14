@@ -4,16 +4,32 @@ import { buildFont, renderDocument, DEFAULTS } from './render.js';
 import { importText, loadJsPdf } from './importers.js';
 import { serialize, deserialize, saveLocal, loadLocal, clearLocal } from './profile.js';
 import { makeDemoScan } from './demo.js';
+import { initDrawing } from './drawui.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { glyphs: [], seed: 1, opts: { ...DEFAULTS }, pages: [] };
+// style = spacing learned from the user's own writing (saved with the profile)
+const state = { glyphs: [], style: {}, seed: 1, opts: { ...DEFAULTS }, pages: [] };
 
-const SAMPLE_TEXT = `Notes for the exam
+function applyStyle(style) {
+  state.style = { ...style };
+  for (const [k, v] of Object.entries(style)) {
+    const el = document.querySelector(`[data-opt="${k}"]`);
+    if (el) el.value = v;
+  }
+  readOptions();
+}
 
-The quick brown fox jumps over the lazy dog. Photosynthesis turns light, water and carbon dioxide into glucose (C6H12O6) and oxygen.
+const SAMPLE_TEXT = `# 03. Photosynthesis
 
-Key dates: 1066, 1492, 1789 & 1969!
-Remember - revision works best when you write it yourself.
+Meaning :- the process plants use to turn light, water and carbon dioxide into glucose (C6H12O6) and oxygen.
+
+Main stages :-
+1. Light reactions take place in the thylakoids and make ATP and NADPH.
+2. The Calvin cycle uses that energy to fix carbon dioxide into sugar.
+
+Factors that affect the rate :-
+- Light intensity, carbon dioxide level and __temperature__.
+- Water supply; results are checked weekly, ~~daily~~ or monthly.
 
 | Subject | Hours | Topic |
 | Biology | 4 | Photosynthesis and respiration |
@@ -74,7 +90,7 @@ function addGlyphs(list) {
 }
 
 function onGlyphsChanged() {
-  saveLocal(state.glyphs);
+  saveLocal(state.glyphs, state.style);
   renderGallery();
   schedulePreview(0);
 }
@@ -256,19 +272,22 @@ function init() {
   $('demoBtn').addEventListener('click', useDemo);
   $('clearBtn').addEventListener('click', () => {
     state.glyphs = [];
+    state.style = {};
     clearLocal();
     onGlyphsChanged();
     setStatus('Handwriting removed from this browser.', 'ok');
   });
   $('saveProfileBtn').addEventListener('click', () => {
-    saveBlob(new Blob([serialize(state.glyphs)], { type: 'application/json' }), 'my-handwriting.json');
+    saveBlob(new Blob([serialize(state.glyphs, state.style)],{ type: 'application/json' }), 'my-handwriting.json');
   });
   $('loadProfileInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
     try {
-      state.glyphs = await deserialize(await file.text());
+      const { glyphs, style } = await deserialize(await file.text());
+      state.glyphs = glyphs;
+      applyStyle(style);
       onGlyphsChanged();
       setStatus(`Loaded ${state.glyphs.length} samples from ${file.name}.`, 'ok');
     } catch (err) {
@@ -287,6 +306,28 @@ function init() {
       schedulePreview(120);
     }),
   );
+  // One click to the look of real notes: plain white paper photographed with a phone.
+  $('notesBtn').addEventListener('click', () => {
+    const look = {
+      paper: 'plain',
+      paperColor: '#ffffff',
+      ink: '#1c1d2b',
+      jitter: 0.75,
+      wordSpacing: Math.max(1.3, state.opts.wordSpacing),
+      underlineHeadings: true,
+      mistakes: true,
+      photo: true,
+    };
+    for (const [k, v] of Object.entries(look)) {
+      const el = document.querySelector(`[data-opt="${k}"]`);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+    }
+    readOptions();
+    schedulePreview(0);
+    setStatus('Study notes look applied: plain paper, dark ink, underlined headings, photo finish.', 'ok');
+  });
   $('shuffleBtn').addEventListener('click', () => {
     state.seed = (state.seed * 1664525 + 1013904223) >>> 0;
     schedulePreview(0);
@@ -298,17 +339,42 @@ function init() {
       if (el.type === 'checkbox') el.checked = v;
       else el.value = v;
     });
+    state.style = {};
+    saveLocal(state.glyphs, state.style);
     readOptions();
     schedulePreview(0);
+  });
+
+  initDrawing({
+    getGlyphs: () => state.glyphs,
+    addGlyph: (g) => {
+      state.glyphs.push(g);
+      onGlyphsChanged();
+    },
+    removeGlyph: (g) => {
+      state.glyphs = state.glyphs.filter((x) => x !== g);
+      onGlyphsChanged();
+    },
+    applyLearned: (r) => {
+      applyStyle({ ...state.style, ...r });
+      saveLocal(state.glyphs, state.style);
+      schedulePreview(0);
+      const parts = [`word spacing ${r.wordSpacing}`];
+      if (r.letterSpacing !== undefined) parts.unshift(`letter spacing ${r.letterSpacing}`);
+      else parts.push('(write your letters first to learn letter spacing too)');
+      setStatus(`Learned from your writing: ${parts.join(', ')}.`, 'ok');
+    },
+    setStatus,
   });
 
   $('text').value = SAMPLE_TEXT;
   readOptions();
   renderGallery();
   renderPreview();
-  loadLocal().then((glyphs) => {
+  loadLocal().then(({ glyphs, style }) => {
     if (glyphs.length) {
       state.glyphs = glyphs;
+      applyStyle(style);
       renderGallery();
       renderPreview();
       setStatus(`Restored ${glyphs.length} saved samples from this browser.`, 'ok');

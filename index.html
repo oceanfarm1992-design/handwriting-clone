@@ -21,16 +21,23 @@
 
     <section class="card" aria-labelledby="h1">
       <h2 id="h1"><span class="n">1</span>Capture your handwriting</h2>
+      <p class="muted">Two ways to capture it. You can mix both and add more versions of a letter at any time.</p>
+      <h3 class="sub">Write on screen</h3>
+      <p class="muted">Use a finger, stylus or mouse on your phone, tablet or computer. Takes about 5 minutes for all 82 characters.</p>
+      <div class="row">
+        <button id="drawBtn" type="button" class="primary">Write on screen</button>
+        <button id="demoBtn" type="button">Try demo handwriting</button>
+      </div>
+      <h3 class="sub">Or print, write with a pen and scan</h3>
       <ol class="how">
         <li>Print the template (two pages, A4). Pages A and B give each letter two different shapes.</li>
         <li>Write one character in every box with a dark pen, resting it on the dashed line.</li>
         <li>Scan or photograph each page flat, in good light, with all four black corner squares visible, then upload the images.</li>
       </ol>
       <div class="row">
-        <button id="tplPdf" type="button" class="primary">Download template (PDF)</button>
+        <button id="tplPdf" type="button">Download template (PDF)</button>
         <button id="tplPng" type="button">Download template (PNG)</button>
         <label class="btn">Upload scans<input id="scanInput" type="file" accept="image/*" multiple hidden></label>
-        <button id="demoBtn" type="button">Try demo handwriting</button>
       </div>
       <div class="row small">
         <label class="btn ghost">Load profile<input id="loadProfileInput" type="file" accept="application/json,.json" hidden></label>
@@ -49,7 +56,15 @@
       </div>
       <label class="field" for="text">Text to write out</label>
       <textarea id="text" rows="9" spellcheck="false"></textarea>
-      <p class="muted">Tables from Word and PDF files appear as rows like <code>| Name | Marks |</code>. You can edit them, or type your own: one line per row, cells separated by <code>|</code>.</p>
+      <details class="syntax">
+        <summary>Formatting you can use</summary>
+        <ul>
+          <li><code># Title</code> gives a heading with a pen underline. Lines like <code>Meaning :-</code> or <code>Main points:</code> are underlined too.</li>
+          <li><code>- point</code>, <code>1. step</code> or <code>a) item</code> make lists; long items wrap neatly under the text.</li>
+          <li><code>__key words__</code> underlines words. <code>~~word~~</code> scribbles a word out.</li>
+          <li><code>| Name | Marks |</code> makes a table row. Tables from Word and PDF files come in like this.</li>
+        </ul>
+      </details>
     </section>
 
     <section class="card" aria-labelledby="h3">
@@ -74,6 +89,9 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" data-opt="marginLine" checked> Margin line</label>
+        <label class="check"><input type="checkbox" data-opt="underlineHeadings" checked> Underline headings</label>
+        <label class="check"><input type="checkbox" data-opt="mistakes"> Occasional crossed-out slips</label>
+        <label class="check"><input type="checkbox" data-opt="photo"> Photo of paper look</label>
         <label>Writing size <output data-out="xHeight">22</output><input type="range" data-opt="xHeight" min="14" max="34" step="1" value="22"></label>
         <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="40" max="90" step="1" value="58"></label>
         <label>Letter spacing <output data-out="letterSpacing">0.12</output><input type="range" data-opt="letterSpacing" min="-0.1" max="0.6" step="0.01" value="0.12"></label>
@@ -82,6 +100,8 @@
         <label>Slant (degrees) <output data-out="slant">0</output><input type="range" data-opt="slant" min="-15" max="15" step="1" value="0"></label>
       </div>
       <div class="row">
+        <button id="notesBtn" type="button" class="primary">Study notes look</button>
+        <button id="spacingBtn" type="button">Learn my spacing</button>
         <button id="shuffleBtn" type="button">Shuffle variation</button>
         <button id="resetBtn" type="button" class="ghost">Reset style</button>
       </div>
@@ -101,6 +121,40 @@
   <footer class="wrap foot">
     <p>Open source under the <a href="LICENSE">MIT licence</a>. Made for people who study best with their own handwriting. Please only use your own handwriting, or handwriting you have permission to copy.</p>
   </footer>
+
+  <dialog id="drawDlg" class="dlg" aria-labelledby="drawTitle">
+    <div class="dlg-head">
+      <h2 id="drawTitle">Write on screen</h2>
+      <button type="button" id="drawClose" class="ghost">Close</button>
+    </div>
+    <div id="drawSetup">
+      <p class="muted">Small letters sit between the two lower lines. Tall letters reach the top dashed line. Tails of g, p and y go below the solid baseline.</p>
+      <label class="field" for="drawSet">Characters to write</label>
+      <select id="drawSet" class="select">
+        <option value="missing">Only the ones I haven't written yet</option>
+        <option value="all">All characters (adds another version of each)</option>
+        <option value="lower">Lowercase a-z</option>
+        <option value="alnum">Letters and numbers</option>
+      </select>
+      <p id="drawSetupMsg" class="warn" role="status"></p>
+      <div class="row"><button type="button" id="drawStart" class="primary">Start writing</button></div>
+    </div>
+    <div id="drawMain" hidden>
+      <div class="prompt" aria-live="polite">
+        <span id="drawPrompt" class="big"></span>
+        <span id="drawHint" class="muted"></span>
+        <span id="drawProgress" class="muted progress"></span>
+      </div>
+      <canvas id="pad" tabindex="0" aria-label="Writing pad. Draw with a finger, stylus or mouse, then press Next."></canvas>
+      <div class="row pad-actions">
+        <button type="button" id="drawBack" class="ghost">Back</button>
+        <button type="button" id="drawUndo">Undo stroke</button>
+        <button type="button" id="drawClear">Clear</button>
+        <button type="button" id="drawSkip" class="ghost">Skip</button>
+        <button type="button" id="drawNext" class="primary">Next</button>
+      </div>
+    </div>
+  </dialog>
 
   <script type="module" src="js/main.js"></script>
 </body>
