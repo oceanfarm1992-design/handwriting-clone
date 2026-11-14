@@ -64,7 +64,15 @@
             <option value="plain">Plain</option>
           </select>
         </label>
-        <label>Paper colour <input type="color" data-opt="paperColor" value="#fdfcf6"></label>
+        <label>Paper colour
+          <select data-opt="paperColor">
+            <option value="#ffffff">White</option>
+            <option value="#fdfcf6" selected>Cream</option>
+            <option value="#fff8d6">Light yellow</option>
+            <option value="#eef4fb">Light blue</option>
+            <option value="#f1f1f1">Light grey</option>
+          </select>
+        </label>
         <label class="check"><input type="checkbox" data-opt="marginLine" checked> Margin line</label>
         <label>Writing size <output data-out="xHeight">22</output><input type="range" data-opt="xHeight" min="14" max="34" step="1" value="22"></label>
         <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="40" max="90" step="1" value="58"></label>
