@@ -12,7 +12,7 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 1. **Or use a template.** The app generates a printable A4 sheet with a box for each of 82 characters (a-z, A-Z, 0-9 and common punctuation) and a black registration square in each corner.
 2. **Capture from paper.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
 3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text. Tables are kept: they appear as `| a | b |` rows (editable, or type your own) and are drawn with hand-ruled borders that follow the paper lines.
-4. **Render.** Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
+4. **Render.** Headings and labels like `Meaning :-` get pen underlines, lists get hanging indents, `__words__` are underlined and `~~words~~` scribbled out. The **Study notes look** gives plain white paper with natural line drift, a wandering margin, occasional crossed-out slips and a phone-photo finish. Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
 5. **Export.** Download a PDF or individual PNG pages.
 
 ## Try it
