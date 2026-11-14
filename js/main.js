@@ -13,7 +13,12 @@ const SAMPLE_TEXT = `Notes for the exam
 The quick brown fox jumps over the lazy dog. Photosynthesis turns light, water and carbon dioxide into glucose (C6H12O6) and oxygen.
 
 Key dates: 1066, 1492, 1789 & 1969!
-Remember - revision works best when you write it yourself.`;
+Remember - revision works best when you write it yourself.
+
+| Subject | Hours | Topic |
+| Biology | 4 | Photosynthesis and respiration |
+| History | 3 | Key dates of the Middle Ages |
+| Maths | 5 | Algebra |`;
 
 const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 

@@ -10,7 +10,7 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 
 1. **Template.** The app generates a printable A4 sheet with a box for each of 82 characters (a-z, A-Z, 0-9 and common punctuation) and a black registration square in each corner.
 2. **Capture.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
-3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text.
+3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text. Tables are kept: they appear as `| a | b |` rows (editable, or type your own) and are drawn with hand-ruled borders that follow the paper lines.
 4. **Render.** Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
 5. **Export.** Download a PDF or individual PNG pages.
 
@@ -61,7 +61,7 @@ PDF.js, mammoth.js and jsPDF are loaded from the jsDelivr CDN on demand.
 - Style-conditioned neural generation (for example Handwriting Transformers or diffusion-based models) for true cursive
 - OCR for scanned PDFs
 - Orientation detection for rotated scans
-- Preserving bold, headings and lists from Word documents
+- Preserving bold and headings from Word documents; merged table cells; ruled lines drawn inside PDF tables
 
 ## Responsible use
 
