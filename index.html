@@ -21,12 +21,17 @@
 
     <section class="card" aria-labelledby="h1">
       <h2 id="h1"><span class="n">1</span>Capture your handwriting</h2>
-      <p class="muted">Two ways to capture it. You can mix both and add more versions of a letter at any time.</p>
+      <p class="muted">Three ways to capture it. You can mix them and add more versions of a letter at any time.</p>
+      <h3 class="sub">From a photo of your writing <span class="tag">no template</span></h3>
+      <p class="muted">Photograph a page of notes you already wrote, or copy a short practice paragraph onto any paper. Tell the app what the page says and it finds your letters, and your spacing, by itself.</p>
+      <div class="row">
+        <button id="photoBtn" type="button" class="primary">Learn from a photo</button>
+        <button id="demoBtn" type="button">Try demo handwriting</button>
+      </div>
       <h3 class="sub">Write on screen</h3>
       <p class="muted">Use a finger, stylus or mouse on your phone, tablet or computer. Takes about 5 minutes for all 82 characters.</p>
       <div class="row">
-        <button id="drawBtn" type="button" class="primary">Write on screen</button>
-        <button id="demoBtn" type="button">Try demo handwriting</button>
+        <button id="drawBtn" type="button">Write on screen</button>
       </div>
       <h3 class="sub">Or print, write with a pen and scan</h3>
       <ol class="how">
@@ -121,6 +126,29 @@
   <footer class="wrap foot">
     <p>Open source under the <a href="LICENSE">MIT licence</a>. Made for people who study best with their own handwriting. Please only use your own handwriting, or handwriting you have permission to copy.</p>
   </footer>
+
+  <dialog id="photoDlg" class="dlg" aria-labelledby="photoTitle">
+    <div class="dlg-head">
+      <h2 id="photoTitle">Learn from a photo</h2>
+      <button type="button" id="photoClose" class="ghost">Close</button>
+    </div>
+    <ol class="how">
+      <li>Copy the practice paragraph below onto any paper in your normal handwriting. Or use a page you already wrote and type what it says instead.</li>
+      <li>Photograph the whole page straight on, in good light.</li>
+      <li>Choose the photo. The text below must match the page word for word, including spelling mistakes.</li>
+    </ol>
+    <label class="field" for="photoText">What the page says</label>
+    <textarea id="photoText" rows="7" spellcheck="false"></textarea>
+    <div class="row small">
+      <button type="button" id="photoPractice" class="ghost">Use practice paragraph</button>
+      <button type="button" id="photoClear" class="ghost">Clear text</button>
+    </div>
+    <p class="muted">Works best when most letters are written separately and words have clear gaps. Fully joined cursive cannot be read this way.</p>
+    <div class="row">
+      <label class="btn primary">Choose photo and read it<input id="photoInput" type="file" accept="image/*" hidden></label>
+    </div>
+    <p id="photoResult" class="status" role="status" aria-live="polite" data-kind="info"></p>
+  </dialog>
 
   <dialog id="drawDlg" class="dlg" aria-labelledby="drawTitle">
     <div class="dlg-head">
