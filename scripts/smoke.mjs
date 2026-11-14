@@ -1,6 +1,6 @@
 // Browser smoke test: open the app in headless Chromium and use it like a person would.
 //
-//   npm install --no-save playwright@1.48.2 && npx playwright install chromium
+//   npm install --no-save playwright@1.64.1 && npx playwright install chromium
 //   node scripts/smoke.mjs [--report report.md]
 //
 // Serves the repository locally, loads a sample handwriting, checks all 82 characters are captured,
@@ -33,6 +33,7 @@ const url = `http://127.0.0.1:${server.address().port}/index.html`;
 const steps = [];
 const errors = [];
 const browser = await chromium.launch();
+const browserVersion = browser.version();
 let failed = false;
 try {
   const page = await browser.newPage();
@@ -100,7 +101,7 @@ try {
   server.close();
 }
 
-const md = [`## Browser smoke test: ${failed ? 'failed' : 'passed'}`, '', ...steps.map((s) => `- ${s}`)].join('\n');
+const md = [`## Browser smoke test (Chromium ${browserVersion}): ${failed ? 'failed' : 'passed'}`, '', ...steps.map((s) => `- ${s}`)].join('\n');
 summary(md);
 if (REPORT) fs.writeFileSync(REPORT, `${md}\n`);
 process.exit(failed ? 1 : 0);

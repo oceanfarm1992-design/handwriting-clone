@@ -37,7 +37,7 @@ jobs:
           node --test
           node scripts/security.mjs --report security.md
           node scripts/health.mjs --report health.md
-          npm install --no-save playwright@1.48.2
+          npm install --no-save playwright@1.64.1
           npx playwright install --with-deps chromium
           node scripts/smoke.mjs --report smoke.md
 

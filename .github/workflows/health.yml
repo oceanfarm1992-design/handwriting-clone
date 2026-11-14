@@ -37,20 +37,26 @@ jobs:
         # the live site only serves main, so pull requests skip that part
         run: node scripts/health.mjs ${{ github.event_name != 'pull_request' && '--site "$SITE"' || '' }} --report health.md
 
-      - name: Browser smoke test
+      - name: Browser smoke test (an older and a current browser)
         id: smoke
         if: success() || failure()
+        # Playwright 1.48 ships Chromium 130 (late 2024); 1.64 ships a current Chromium.
         run: |
-          npm install --no-save playwright@1.48.2
-          npx playwright install --with-deps chromium
-          node scripts/smoke.mjs --report smoke.md
+          for v in 1.48.2 1.64.1; do
+            dir="$RUNNER_TEMP/pw-$v"
+            mkdir -p "$dir" && cd "$dir"
+            echo '{"private":true}' > package.json
+            npm install --no-save --silent "playwright@$v"
+            npx playwright install --with-deps chromium > /dev/null
+            node "$GITHUB_WORKSPACE/scripts/smoke.mjs" --report "$GITHUB_WORKSPACE/smoke-$v.md"
+          done
 
       - name: Open an issue
         if: failure() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          { echo "Unit tests: ${{ steps.tests.outcome }}"; echo; cat health.md smoke.md 2>/dev/null; } > body.md
+          { echo "Unit tests: ${{ steps.tests.outcome }}"; echo; cat health.md smoke-*.md 2>/dev/null; } > body.md
           node scripts/issue.mjs open "Weekly health check failed" body.md health-check
 
       - name: Close the issue once healthy
