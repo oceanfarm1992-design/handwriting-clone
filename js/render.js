@@ -47,10 +47,31 @@ export function buildFont(glyphs) {
     if (!byChar.has(g.ch)) byChar.set(g.ch, []);
     byChar.get(g.ch).push(g);
   }
-  let hs = glyphs.filter((g) => X_LETTERS.includes(g.ch)).map((g) => g.inkH);
-  if (!hs.length) hs = glyphs.map((g) => g.inkH);
-  hs.sort((a, b) => a - b);
-  const xHeight = hs.length ? hs[Math.floor(hs.length / 2)] : 30;
+  // Scanned and on-screen samples are captured at different sizes. Measure each source's
+  // x-height separately and give every glyph a factor (g.norm) that brings it to a common size.
+  const median = (a) => {
+    const s = [...a].sort((x, y) => x - y);
+    return s.length ? s[Math.floor(s.length / 2)] : null;
+  };
+  const sourceXh = (list) => median(list.filter((g) => X_LETTERS.includes(g.ch)).map((g) => g.inkH)) ?? median(list.map((g) => g.inkH));
+  const groups = new Map();
+  for (const g of glyphs) {
+    const k = g.src || 'scan';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(g);
+  }
+  let xHeight = 30;
+  let biggest = 0;
+  for (const list of groups.values()) {
+    if (list.length > biggest) {
+      biggest = list.length;
+      xHeight = sourceXh(list) || 30;
+    }
+  }
+  for (const list of groups.values()) {
+    const xh = sourceXh(list) || xHeight;
+    for (const g of list) g.norm = xHeight / xh;
+  }
   return { byChar, xHeight };
 }
 
@@ -168,7 +189,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       if (variants.length > 1 && last.get(c) === g) g = variants[(variants.indexOf(g) + 1) % variants.length];
       last.set(c, g);
       const j = o.jitter;
-      const s = scale * (1 + (rand() - 0.5) * 0.14 * j);
+      const s = scale * (g.norm || 1) * (1 + (rand() - 0.5) * 0.14 * j);
       const item = {
         g,
         s,
@@ -230,10 +251,10 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   // ---- tables ----
   const allGlyphs = [...font.byChar.values()].flat();
   const avgAdv =
-    ((allGlyphs.reduce((a, g) => a + g.inkW, 0) / Math.max(1, allGlyphs.length)) * scale + o.letterSpacing * xh) * 0.95;
+    ((allGlyphs.reduce((a, g) => a + g.inkW * (g.norm || 1), 0) / Math.max(1, allGlyphs.length)) * scale + o.letterSpacing * xh) * 0.95;
   const charAdv = new Map();
   for (const [c, gs] of font.byChar) {
-    charAdv.set(c, (gs.reduce((a, g) => a + g.inkW, 0) / gs.length) * scale * 1.06 + o.letterSpacing * xh * 1.1);
+    charAdv.set(c, (gs.reduce((a, g) => a + g.inkW * (g.norm || 1), 0) / gs.length) * scale * 1.06 + o.letterSpacing * xh * 1.1);
   }
   const textW = (str) =>
     [...str].reduce((a, c) => a + (c === ' ' ? xh * 1.05 * o.wordSpacing * 1.15 : charAdv.get(c) ?? avgAdv), 0);

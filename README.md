@@ -8,8 +8,9 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 
 ## How it works
 
-1. **Template.** The app generates a printable A4 sheet with a box for each of 82 characters (a-z, A-Z, 0-9 and common punctuation) and a black registration square in each corner.
-2. **Capture.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
+1. **Write on screen (fastest).** Write each character on a pad with a finger, stylus (pressure-sensitive) or mouse. School-style guide lines keep sizes consistent, and you can go back, undo or skip. Then write two short sentences so the app can **learn your letter and word spacing**.
+1. **Or use a template.** The app generates a printable A4 sheet with a box for each of 82 characters (a-z, A-Z, 0-9 and common punctuation) and a black registration square in each corner.
+2. **Capture from paper.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
 3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text. Tables are kept: they appear as `| a | b |` rows (editable, or type your own) and are drawn with hand-ruled borders that follow the paper lines.
 4. **Render.** Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
 5. **Export.** Download a PDF or individual PNG pages.
@@ -29,10 +30,10 @@ Then open http://localhost:8000.
 ## Tests
 
 ```bash
-node --test tests/cv.test.mjs
+node --test tests/
 ```
 
-The computer-vision helpers in `js/cv.js` (thresholding, connected components, homography, lighting normalisation, corner detection) have no DOM dependency and are unit tested with Node's built-in runner.
+The computer-vision helpers in `js/cv.js` (thresholding, connected components, homography, lighting normalisation, corner detection) and the spacing learner in `js/spacing.js` have no DOM dependency and are unit tested with Node's built-in runner.
 
 ## Project layout
 
@@ -45,6 +46,9 @@ The computer-vision helpers in `js/cv.js` (thresholding, connected components, h
 | `js/importers.js` | Word / PDF / text import, jsPDF loader |
 | `js/profile.js` | Save and load handwriting profiles |
 | `js/demo.js` | Fake scan used by the demo button |
+| `js/drawpad.js` | Writing pad and stroke-to-glyph conversion |
+| `js/drawui.js` | Write-on-screen and learn-spacing dialog |
+| `js/spacing.js` | Learns spacing from a written sentence (DOM-free) |
 | `js/main.js` | UI wiring |
 
 PDF.js, mammoth.js and jsPDF are loaded from the jsDelivr CDN on demand.

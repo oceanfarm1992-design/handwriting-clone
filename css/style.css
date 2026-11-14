@@ -136,3 +136,32 @@ textarea {
 @media (prefers-reduced-motion: no-preference) {
   button, .btn { transition: border-color 0.12s; }
 }
+
+/* Write-on-screen dialog */
+.sub { font-size: 16px; margin: 16px 0 4px; }
+.dlg {
+  width: min(680px, calc(100vw - 16px));
+  max-width: none;
+  max-height: calc(100dvh - 16px);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+}
+.dlg::backdrop { background: rgba(0, 0, 0, 0.5); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.dlg-head h2 { margin: 0; font-size: 20px; }
+.select { font: inherit; width: 100%; padding: 8px; min-height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.prompt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 4px 0 10px; min-height: 48px; }
+.prompt .big { font: 600 40px/1.1 Georgia, 'Times New Roman', serif; overflow-wrap: anywhere; }
+.prompt .progress { margin-left: auto; }
+#pad { display: block; width: 100%; margin: 0 auto; touch-action: none; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: crosshair; }
+.pad-actions { justify-content: flex-end; }
+.pad-actions #drawBack { margin-right: auto; }
+@media (max-width: 520px) {
+  .dlg { padding: 12px; }
+  .prompt .big { font-size: 30px; }
+  .pad-actions > * { flex: 1 1 auto; }
+  .pad-actions #drawNext { flex: 1 1 100%; }
+}

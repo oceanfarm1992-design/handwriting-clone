@@ -4,9 +4,20 @@ import { buildFont, renderDocument, DEFAULTS } from './render.js';
 import { importText, loadJsPdf } from './importers.js';
 import { serialize, deserialize, saveLocal, loadLocal, clearLocal } from './profile.js';
 import { makeDemoScan } from './demo.js';
+import { initDrawing } from './drawui.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { glyphs: [], seed: 1, opts: { ...DEFAULTS }, pages: [] };
+// style = spacing learned from the user's own writing (saved with the profile)
+const state = { glyphs: [], style: {}, seed: 1, opts: { ...DEFAULTS }, pages: [] };
+
+function applyStyle(style) {
+  state.style = { ...style };
+  for (const [k, v] of Object.entries(style)) {
+    const el = document.querySelector(`[data-opt="${k}"]`);
+    if (el) el.value = v;
+  }
+  readOptions();
+}
 
 const SAMPLE_TEXT = `Notes for the exam
 
@@ -74,7 +85,7 @@ function addGlyphs(list) {
 }
 
 function onGlyphsChanged() {
-  saveLocal(state.glyphs);
+  saveLocal(state.glyphs, state.style);
   renderGallery();
   schedulePreview(0);
 }
@@ -256,19 +267,22 @@ function init() {
   $('demoBtn').addEventListener('click', useDemo);
   $('clearBtn').addEventListener('click', () => {
     state.glyphs = [];
+    state.style = {};
     clearLocal();
     onGlyphsChanged();
     setStatus('Handwriting removed from this browser.', 'ok');
   });
   $('saveProfileBtn').addEventListener('click', () => {
-    saveBlob(new Blob([serialize(state.glyphs)], { type: 'application/json' }), 'my-handwriting.json');
+    saveBlob(new Blob([serialize(state.glyphs, state.style)],{ type: 'application/json' }), 'my-handwriting.json');
   });
   $('loadProfileInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
     try {
-      state.glyphs = await deserialize(await file.text());
+      const { glyphs, style } = await deserialize(await file.text());
+      state.glyphs = glyphs;
+      applyStyle(style);
       onGlyphsChanged();
       setStatus(`Loaded ${state.glyphs.length} samples from ${file.name}.`, 'ok');
     } catch (err) {
@@ -298,17 +312,42 @@ function init() {
       if (el.type === 'checkbox') el.checked = v;
       else el.value = v;
     });
+    state.style = {};
+    saveLocal(state.glyphs, state.style);
     readOptions();
     schedulePreview(0);
+  });
+
+  initDrawing({
+    getGlyphs: () => state.glyphs,
+    addGlyph: (g) => {
+      state.glyphs.push(g);
+      onGlyphsChanged();
+    },
+    removeGlyph: (g) => {
+      state.glyphs = state.glyphs.filter((x) => x !== g);
+      onGlyphsChanged();
+    },
+    applyLearned: (r) => {
+      applyStyle({ ...state.style, ...r });
+      saveLocal(state.glyphs, state.style);
+      schedulePreview(0);
+      const parts = [`word spacing ${r.wordSpacing}`];
+      if (r.letterSpacing !== undefined) parts.unshift(`letter spacing ${r.letterSpacing}`);
+      else parts.push('(write your letters first to learn letter spacing too)');
+      setStatus(`Learned from your writing: ${parts.join(', ')}.`, 'ok');
+    },
+    setStatus,
   });
 
   $('text').value = SAMPLE_TEXT;
   readOptions();
   renderGallery();
   renderPreview();
-  loadLocal().then((glyphs) => {
+  loadLocal().then(({ glyphs, style }) => {
     if (glyphs.length) {
       state.glyphs = glyphs;
+      applyStyle(style);
       renderGallery();
       renderPreview();
       setStatus(`Restored ${glyphs.length} saved samples from this browser.`, 'ok');
