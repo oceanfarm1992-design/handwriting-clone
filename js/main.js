@@ -19,12 +19,17 @@ function applyStyle(style) {
   readOptions();
 }
 
-const SAMPLE_TEXT = `Notes for the exam
+const SAMPLE_TEXT = `# 03. Photosynthesis
 
-The quick brown fox jumps over the lazy dog. Photosynthesis turns light, water and carbon dioxide into glucose (C6H12O6) and oxygen.
+Meaning :- the process plants use to turn light, water and carbon dioxide into glucose (C6H12O6) and oxygen.
 
-Key dates: 1066, 1492, 1789 & 1969!
-Remember - revision works best when you write it yourself.
+Main stages :-
+1. Light reactions take place in the thylakoids and make ATP and NADPH.
+2. The Calvin cycle uses that energy to fix carbon dioxide into sugar.
+
+Factors that affect the rate :-
+- Light intensity, carbon dioxide level and __temperature__.
+- Water supply; results are checked weekly, ~~daily~~ or monthly.
 
 | Subject | Hours | Topic |
 | Biology | 4 | Photosynthesis and respiration |
@@ -301,6 +306,28 @@ function init() {
       schedulePreview(120);
     }),
   );
+  // One click to the look of real notes: plain white paper photographed with a phone.
+  $('notesBtn').addEventListener('click', () => {
+    const look = {
+      paper: 'plain',
+      paperColor: '#ffffff',
+      ink: '#1c1d2b',
+      jitter: 0.75,
+      wordSpacing: Math.max(1.3, state.opts.wordSpacing),
+      underlineHeadings: true,
+      mistakes: true,
+      photo: true,
+    };
+    for (const [k, v] of Object.entries(look)) {
+      const el = document.querySelector(`[data-opt="${k}"]`);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+    }
+    readOptions();
+    schedulePreview(0);
+    setStatus('Study notes look applied: plain paper, dark ink, underlined headings, photo finish.', 'ok');
+  });
   $('shuffleBtn').addEventListener('click', () => {
     state.seed = (state.seed * 1664525 + 1013904223) >>> 0;
     schedulePreview(0);
