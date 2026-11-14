@@ -5,6 +5,7 @@ import { importText, loadJsPdf } from './importers.js';
 import { serialize, deserialize, saveLocal, loadLocal, clearLocal } from './profile.js';
 import { makeDemoScan } from './demo.js';
 import { initDrawing } from './drawui.js';
+import { initPhoto } from './photoui.js';
 
 const $ = (id) => document.getElementById(id);
 // style = spacing learned from the user's own writing (saved with the profile)
@@ -259,6 +260,18 @@ async function exportPdf() {
   }
 }
 
+// Apply spacing measured from the user's own writing (on-screen sentences or a photo).
+function applyLearned(r, quiet = false) {
+  applyStyle({ ...state.style, ...r });
+  saveLocal(state.glyphs, state.style);
+  schedulePreview(0);
+  if (quiet) return;
+  const parts = [`word spacing ${r.wordSpacing}`];
+  if (r.letterSpacing !== undefined) parts.unshift(`letter spacing ${r.letterSpacing}`);
+  else parts.push('(write your letters first to learn letter spacing too)');
+  setStatus(`Learned from your writing: ${parts.join(', ')}.`, 'ok');
+}
+
 /* ---------- wiring ---------- */
 
 function init() {
@@ -355,17 +368,11 @@ function init() {
       state.glyphs = state.glyphs.filter((x) => x !== g);
       onGlyphsChanged();
     },
-    applyLearned: (r) => {
-      applyStyle({ ...state.style, ...r });
-      saveLocal(state.glyphs, state.style);
-      schedulePreview(0);
-      const parts = [`word spacing ${r.wordSpacing}`];
-      if (r.letterSpacing !== undefined) parts.unshift(`letter spacing ${r.letterSpacing}`);
-      else parts.push('(write your letters first to learn letter spacing too)');
-      setStatus(`Learned from your writing: ${parts.join(', ')}.`, 'ok');
-    },
+    applyLearned,
     setStatus,
   });
+
+  initPhoto({ addGlyphs, applyLearned });
 
   $('text').value = SAMPLE_TEXT;
   readOptions();
