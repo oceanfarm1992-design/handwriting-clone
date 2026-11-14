@@ -177,3 +177,7 @@ textarea {
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .dlg .status:empty { display: none; }
 .dlg .status { margin: 10px 0 0; }
+
+.select.grow { flex: 1 1 220px; width: auto; }
+.inline { font-weight: 600; }
+.controls input[type='number'] { font: inherit; padding: 8px; min-height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); width: 100%; }

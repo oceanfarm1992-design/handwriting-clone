@@ -14,11 +14,12 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 2. **Capture from paper.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
 3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text. Tables are kept: they appear as `| a | b |` rows (editable, or type your own) and are drawn with hand-ruled borders that follow the paper lines.
 4. **Render.** Headings and labels like `Meaning :-` get pen underlines, lists get hanging indents, `__words__` are underlined and `~~words~~` scribbled out. The **Study notes look** gives plain white paper with natural line drift, a wandering margin, occasional crossed-out slips and a phone-photo finish. Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
+5. **Layout controls.** Paragraph spacing sets the gap between paragraphs, and a page limit shrinks the writing just enough to fit a maximum number of pages (down to 55% of the chosen size).
 5. **Export.** Download a PDF or individual PNG pages.
 
 ## Try it
 
-Open the live app and press **Try demo handwriting**. It fabricates a crooked, unevenly lit photo of a filled-in template using a script font and runs it through the full pipeline.
+Open the live app, pick one of the ten **sample handwritings** and press **Use this sample**. Each sample is an open handwriting font (SIL Open Font License, fetched from Google Fonts when chosen; the first one uses fonts already on your device and works offline). The app draws it into a crooked, unevenly lit fake photo of the template and runs that through the full scan pipeline.
 
 To run locally, serve the folder with any static server (ES modules need `http://`, not `file://`):
 

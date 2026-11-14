@@ -3,7 +3,7 @@ import { extractGlyphs } from './extract.js';
 import { buildFont, renderDocument, DEFAULTS } from './render.js';
 import { importText, loadJsPdf } from './importers.js';
 import { serialize, deserialize, saveLocal, loadLocal, clearLocal } from './profile.js';
-import { makeDemoScan } from './demo.js';
+import { makeDemoScan, loadSampleFont, SAMPLE_STYLES } from './demo.js';
 import { initDrawing } from './drawui.js';
 import { initPhoto } from './photoui.js';
 
@@ -126,15 +126,20 @@ async function handleScans(files) {
 }
 
 async function useDemo() {
-  setStatus('Building demo handwriting…');
+  const style = SAMPLE_STYLES.find((x) => x.id === $('sampleSelect').value) || SAMPLE_STYLES[0];
+  setStatus(`Loading sample handwriting: ${style.name}…`);
   await wait();
-  state.glyphs = [];
-  for (const v of [0, 1]) {
-    const { glyphs } = extractGlyphs(makeDemoScan(v));
-    state.glyphs.push(...glyphs);
+  try {
+    const family = await loadSampleFont(style);
+    const glyphs = [];
+    for (const v of [0, 1]) glyphs.push(...extractGlyphs(makeDemoScan(v, family)).glyphs);
+    state.glyphs = glyphs;
+    state.style = {};
+    onGlyphsChanged();
+    setStatus(`Sample handwriting loaded: ${style.name}. It is a handwriting font, not yours; capture your own to replace it.`, 'ok');
+  } catch (e) {
+    setStatus(e.message || 'Could not load that sample.', 'error');
   }
-  onGlyphsChanged();
-  setStatus('Demo handwriting loaded (a script font, not yours). Upload your own scans to replace it.', 'ok');
 }
 
 function renderGallery() {
@@ -190,7 +195,11 @@ async function handleDocument(file) {
 function readOptions() {
   document.querySelectorAll('[data-opt]').forEach((el) => {
     const k = el.dataset.opt;
-    state.opts[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? parseFloat(el.value) : el.value;
+    state.opts[k] =
+      el.type === 'checkbox' ? el.checked
+      : el.type === 'range' ? parseFloat(el.value)
+      : el.type === 'number' ? Math.max(0, parseInt(el.value, 10) || 0)
+      : el.value;
     const out = document.querySelector(`[data-out="${k}"]`);
     if (out) out.textContent = el.value;
   });
@@ -219,7 +228,37 @@ function renderPreview() {
     return;
   }
   const font = buildFont(state.glyphs);
-  const { pages, missing, truncated } = renderDocument(text, font, state.opts, state.seed);
+  let { pages, missing, truncated } = renderDocument(text, font, state.opts, state.seed);
+  // Page limit: shrink the writing (size and line height together) just enough to fit.
+  const target = state.opts.fitPages;
+  let fitNote = '';
+  if (target > 0 && (pages.length > target || truncated)) {
+    const at = (f, quick) =>
+      renderDocument(
+        text,
+        font,
+        { ...state.opts, xHeight: state.opts.xHeight * f, lineHeight: state.opts.lineHeight * f, ...(quick ? { photo: false } : {}) },
+        state.seed,
+      );
+    const fits = (r) => r.pages.length <= target && !r.truncated;
+    const MIN = 0.55; // below this the writing stops being comfortably readable
+    let f = MIN;
+    if (fits(at(MIN, true))) {
+      let lo = MIN;
+      let hi = 1;
+      for (let i = 0; i < 6; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(at(mid, true))) lo = mid;
+        else hi = mid;
+      }
+      f = lo;
+      fitNote = `Writing shrunk to ${Math.round(f * 100)}% to fit ${target} page${target === 1 ? '' : 's'}.`;
+    }
+    ({ pages, missing, truncated } = at(f, false));
+    if (!fitNote) {
+      fitNote = `This needs ${pages.length}${truncated ? '+' : ''} pages even at the smallest readable size (${Math.round(MIN * 100)}%), more than your limit of ${target}.`;
+    }
+  }
   state.pages = pages;
   pages.forEach((canvas, i) => {
     const fig = document.createElement('figure');
@@ -239,6 +278,7 @@ function renderPreview() {
   });
   const notes = [];
   if (missing.length) notes.push(`No sample for: ${missing.join(' ')} (skipped).`);
+  if (fitNote) notes.push(fitNote);
   if (truncated) notes.push(`Preview limited to ${state.opts.maxPages} pages.`);
   $('warn').textContent = notes.join(' ');
 }
@@ -373,6 +413,8 @@ function init() {
   });
 
   initPhoto({ addGlyphs, applyLearned });
+
+  for (const st of SAMPLE_STYLES) $('sampleSelect').add(new Option(st.name, st.id));
 
   $('text').value = SAMPLE_TEXT;
   readOptions();
