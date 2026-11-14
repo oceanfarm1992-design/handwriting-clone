@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Handwriting Clone</title>
+  <meta name="description" content="Turn Word, PDF or text documents into pages written in your own handwriting. Free, open source, and everything stays in your browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f2a6b'/%3E%3Cpath d='M8 23c4-1 5-12 8-12s0 12 4 12 3-6 5-8' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <h1>Handwriting Clone</h1>
+      <p>Turn a Word, PDF or text document into pages written in <em>your own</em> handwriting. Everything runs in your browser, so your handwriting never leaves your device.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p id="status" class="status" role="status" aria-live="polite" data-kind="info">Start by loading the demo, or print the template and capture your own writing.</p>
+
+    <section class="card" aria-labelledby="h1">
+      <h2 id="h1"><span class="n">1</span>Capture your handwriting</h2>
+      <ol class="how">
+        <li>Print the template (two pages, A4). Pages A and B give each letter two different shapes.</li>
+        <li>Write one character in every box with a dark pen, resting it on the dashed line.</li>
+        <li>Scan or photograph each page flat, in good light, with all four black corner squares visible, then upload the images.</li>
+      </ol>
+      <div class="row">
+        <button id="tplPdf" type="button" class="primary">Download template (PDF)</button>
+        <button id="tplPng" type="button">Download template (PNG)</button>
+        <label class="btn">Upload scans<input id="scanInput" type="file" accept="image/*" multiple hidden></label>
+        <button id="demoBtn" type="button">Try demo handwriting</button>
+      </div>
+      <div class="row small">
+        <label class="btn ghost">Load profile<input id="loadProfileInput" type="file" accept="application/json,.json" hidden></label>
+        <button id="saveProfileBtn" type="button" class="ghost" disabled>Save profile</button>
+        <button id="clearBtn" type="button" class="ghost" disabled>Remove my handwriting</button>
+      </div>
+      <p id="glyphSummary" class="muted">No handwriting yet.</p>
+      <div id="glyphGrid" class="glyphs"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h2">
+      <h2 id="h2"><span class="n">2</span>Add your document</h2>
+      <div class="row">
+        <label class="btn">Open Word, PDF or text file<input id="docInput" type="file" accept=".docx,.pdf,.txt,.md,text/plain" hidden></label>
+        <span class="muted">or type and paste below</span>
+      </div>
+      <label class="field" for="text">Text to write out</label>
+      <textarea id="text" rows="9" spellcheck="false"></textarea>
+    </section>
+
+    <section class="card" aria-labelledby="h3">
+      <h2 id="h3"><span class="n">3</span>Tune the style</h2>
+      <div class="controls">
+        <label>Ink colour <input type="color" data-opt="ink" value="#1f2a6b"></label>
+        <label>Paper
+          <select data-opt="paper">
+            <option value="ruled">Ruled</option>
+            <option value="grid">Grid</option>
+            <option value="dotted">Dotted</option>
+            <option value="plain">Plain</option>
+          </select>
+        </label>
+        <label>Paper colour <input type="color" data-opt="paperColor" value="#fdfcf6"></label>
+        <label class="check"><input type="checkbox" data-opt="marginLine" checked> Margin line</label>
+        <label>Writing size <output data-out="xHeight">22</output><input type="range" data-opt="xHeight" min="14" max="34" step="1" value="22"></label>
+        <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="40" max="90" step="1" value="58"></label>
+        <label>Letter spacing <output data-out="letterSpacing">0.12</output><input type="range" data-opt="letterSpacing" min="-0.1" max="0.6" step="0.01" value="0.12"></label>
+        <label>Word spacing <output data-out="wordSpacing">1</output><input type="range" data-opt="wordSpacing" min="0.5" max="2" step="0.05" value="1"></label>
+        <label>Natural variation <output data-out="jitter">0.5</output><input type="range" data-opt="jitter" min="0" max="1" step="0.05" value="0.5"></label>
+        <label>Slant (degrees) <output data-out="slant">0</output><input type="range" data-opt="slant" min="-15" max="15" step="1" value="0"></label>
+      </div>
+      <div class="row">
+        <button id="shuffleBtn" type="button">Shuffle variation</button>
+        <button id="resetBtn" type="button" class="ghost">Reset style</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h4">
+      <h2 id="h4"><span class="n">4</span>Preview and export</h2>
+      <div id="exportRow" class="row" hidden>
+        <button id="pdfBtn" type="button" class="primary">Download PDF</button>
+        <span class="muted">Each page also has its own Save PNG button.</span>
+      </div>
+      <p id="warn" class="warn" role="status"></p>
+      <div id="pages" class="pages"></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>Open source under the <a href="LICENSE">MIT licence</a>. Made for people who study best with their own handwriting. Please only use your own handwriting, or handwriting you have permission to copy.</p>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
