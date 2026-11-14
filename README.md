@@ -75,6 +75,16 @@ PDF.js, mammoth.js and jsPDF are loaded from the jsDelivr CDN on demand.
 
 Use your own handwriting, or handwriting you have clear permission to copy. Do not use this to forge signatures, impersonate others, or submit work in a way your school or employer forbids. Handwriting is personal data: samples stay in your browser, and **Remove my handwriting** deletes the saved copy.
 
+## Repository bots
+
+Three scheduled GitHub Actions keep the project healthy. Each opens an issue when something is wrong and closes it once fixed. See [SECURITY.md](SECURITY.md) for details.
+
+- **Security check** (weekly, and on every pull request): CodeQL, known vulnerabilities in the CDN libraries, pinning and integrity hashes, secrets, and personal handwriting accidentally committed.
+- **Health check** (weekly): unit tests, every library and font the app needs, the live site, and a headless-browser smoke test.
+- **Update bot** (monthly): updates the CDN libraries (only releases at least 14 days old), re-runs every check, and opens a pull request. Dependabot updates the workflow actions weekly.
+
+Run them locally with `node scripts/security.mjs`, `node scripts/health.mjs --site <url>`, and `node scripts/update-cdn.mjs --check`.
+
 ## Licence
 
 [MIT](LICENSE)

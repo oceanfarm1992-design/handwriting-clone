@@ -1,0 +1,77 @@
+# Update bot (monthly): moves the CDN libraries to their newest same-major release that has been
+# public for at least 14 days, re-checks everything on the new versions, then opens a pull request.
+# New major versions are reported in an issue instead, because they need a person to test them.
+name: Update bot
+
+on:
+  schedule:
+    - cron: '13 6 1 * *' # 06:13 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: update-bot
+  cancel-in-progress: false
+
+jobs:
+  cdn-libraries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Look for updates
+        id: update
+        run: node scripts/update-cdn.mjs --report report.md
+
+      - name: Re-check the app with the updated libraries
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          node --test
+          node scripts/security.mjs --report security.md
+          node scripts/health.mjs --report health.md
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+          node scripts/smoke.mjs --report smoke.md
+
+      - name: Open or refresh the update pull request
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/cdn-updates
+          git add js/cdn-libs.js
+          git commit -m "Update CDN libraries" -m "$(cat report.md)"
+          git push --force origin bot/cdn-updates
+          { cat report.md; echo; cat security.md health.md smoke.md; echo; echo "Every check above ran on the updated libraries before this pull request was opened."; } > body.md
+          gh label create dependencies --color 0366d6 --force >/dev/null 2>&1 || true
+          if [ "$(gh pr view bot/cdn-updates --json state -q .state 2>/dev/null)" = "OPEN" ]; then
+            gh pr edit bot/cdn-updates --body-file body.md
+          elif ! gh pr create --base main --head bot/cdn-updates --title "Update CDN libraries" --body-file body.md --label dependencies; then
+            node scripts/issue.mjs open "CDN library updates ready" body.md dependencies \
+              "The update bot prepared branch bot/cdn-updates but may not open pull requests. Open one from that branch, or allow it under Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests."
+          fi
+
+      - name: Report new major versions
+        if: steps.update.outputs.majors == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/issue.mjs open "New major versions of CDN libraries" report.md dependencies
+
+      - name: Report a failed update
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat report.md security.md health.md smoke.md > body.md 2>/dev/null || true
+          node scripts/issue.mjs open "Update bot failed" body.md bot \
+            "The newest library versions failed a check, so no update was proposed. Nothing on the live site changed."
