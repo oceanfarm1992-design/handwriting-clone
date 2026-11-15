@@ -1,0 +1,66 @@
+# Health bot (weekly, and on pull requests that touch the app): unit tests, every file and
+# library the app depends on, the live site, and a real-browser smoke test. Opens an issue when
+# the scheduled check fails and closes it again once everything passes.
+name: Health check
+
+on:
+  schedule:
+    - cron: '17 5 * * 1' # Mondays 05:17 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: ['index.html', 'css/**', 'js/**', 'scripts/**', 'tests/**', '.github/workflows/health.yml']
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Unit tests
+        id: tests
+        run: node --test
+
+      - name: Libraries, fonts and live site
+        id: deps
+        if: success() || failure()
+        # the live site only serves main, so pull requests skip that part
+        run: node scripts/health.mjs ${{ github.event_name != 'pull_request' && '--site "$SITE"' || '' }} --report health.md
+
+      - name: Browser smoke test (an older and a current browser)
+        id: smoke
+        if: success() || failure()
+        # Playwright 1.48 ships Chromium 130 (late 2024); 1.64 ships a current Chromium.
+        run: |
+          for v in 1.48.2 1.64.1; do
+            dir="$RUNNER_TEMP/pw-$v"
+            mkdir -p "$dir" && cd "$dir"
+            echo '{"private":true}' > package.json
+            npm install --no-save --silent "playwright@$v"
+            npx playwright install --with-deps chromium > /dev/null
+            node "$GITHUB_WORKSPACE/scripts/smoke.mjs" --report "$GITHUB_WORKSPACE/smoke-$v.md"
+          done
+
+      - name: Open an issue
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "Unit tests: ${{ steps.tests.outcome }}"; echo; cat health.md smoke-*.md 2>/dev/null; } > body.md
+          node scripts/issue.mjs open "Weekly health check failed" body.md health-check
+
+      - name: Close the issue once healthy
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/issue.mjs close "Weekly health check failed" health-check

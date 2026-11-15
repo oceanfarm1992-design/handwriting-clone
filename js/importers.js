@@ -1,24 +1,26 @@
 // Read text out of .txt / .md / .docx / .pdf files. Heavy libraries load on demand from a CDN.
 // Tables are converted to pipe rows ("| a | b |"), which the renderer draws as hand-ruled tables.
 
-const LIBS = {
-  mammoth: 'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js',
-  pdfjs: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
-  pdfjsWorker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
-  jspdf: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-};
+import { LIBS } from './cdn-libs.js';
 
 const loading = new Map();
-export function loadScript(url) {
+/** Load a library from LIBS (checked against its integrity hash) or a plain URL. */
+export function loadScript(lib) {
+  const { url, integrity } = typeof lib === 'string' ? { url: lib } : lib;
   if (!loading.has(url)) {
     loading.set(
       url,
       new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = url;
+        if (integrity) {
+          s.integrity = integrity;
+          s.crossOrigin = 'anonymous';
+        }
         s.onload = resolve;
         s.onerror = () => {
           loading.delete(url);
+          s.remove();
           reject(new Error('Could not load a required library. Check your internet connection.'));
         };
         document.head.appendChild(s);
@@ -165,11 +167,53 @@ export function pdfItemsToText(items) {
   return out.join('\n');
 }
 
+/** Download a CDN file and refuse it unless its SHA-384 matches the pinned integrity hash. */
+async function fetchVerified(lib) {
+  const res = await fetch(lib.url, { mode: 'cors', credentials: 'omit' });
+  if (!res.ok) throw new Error('Could not load a required library. Check your internet connection.');
+  const buf = await res.arrayBuffer();
+  const [alg, want] = lib.integrity.split(/-(.+)/);
+  const digest = await crypto.subtle.digest(alg.replace('sha', 'SHA-'), buf);
+  let bin = '';
+  for (const b of new Uint8Array(digest)) bin += String.fromCharCode(b);
+  if (btoa(bin) !== want) throw new Error('A required library failed its integrity check, so it was not run.');
+  return new Blob([buf], { type: 'text/javascript' });
+}
+
+const modules = new Map();
+/** import() cannot check integrity hashes, so verify the module first and import it from a blob. */
+function importVerified(lib) {
+  if (!modules.has(lib.url)) {
+    const p = fetchVerified(lib).then(async (blob) => {
+      const url = URL.createObjectURL(blob);
+      try {
+        return await import(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    });
+    p.catch(() => modules.delete(lib.url));
+    modules.set(lib.url, p);
+  }
+  return modules.get(lib.url);
+}
+
+let pdfWorker = null;
+export async function loadPdfJs() {
+  const pdfjs = await importVerified(LIBS.pdfjs);
+  if (!pdfWorker) {
+    // the worker is verified the same way and started from the checked copy
+    const blob = await fetchVerified(LIBS.pdfjsWorker);
+    pdfWorker = new Worker(URL.createObjectURL(blob), { type: 'module' });
+    pdfjs.GlobalWorkerOptions.workerPort = pdfWorker;
+  }
+  return pdfjs;
+}
+
 async function readPdf(file) {
-  await loadScript(LIBS.pdfjs);
-  const pdfjs = window.pdfjsLib;
-  pdfjs.GlobalWorkerOptions.workerSrc = LIBS.pdfjsWorker;
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pdfjs = await loadPdfJs();
+  // isEvalSupported: false — never compile code from inside a PDF (defence in depth for CVE-2024-4367)
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
   const pages = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const content = await (await doc.getPage(p)).getTextContent();
