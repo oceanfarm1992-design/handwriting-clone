@@ -29,6 +29,7 @@ export const DEFAULTS = {
   drawMode: 'ink', // ink: the letters as captured | pen: redrawn from pen strokes (crisp, joins flow)
   pixelRatio: 1, // 1 = 150 dpi (screen preview); 2 = 300 dpi (printing)
   onPage: null, // optional callback(canvas, index): pages are handed over one at a time and not kept
+  onlyPage: -1, // when >= 0, lay out everything but draw only this page (fast single-page export)
 };
 
 const MARGINS = {
@@ -279,6 +280,11 @@ function drawPaper(ctx, o) {
     ctx.stroke();
   }
 }
+
+// Drawing calls on pages that are not wanted go nowhere: the layout (and every random choice) is
+// computed exactly as usual, so the wanted page comes out identical, but nothing is painted.
+const NOOP_CTX = new Proxy({}, { get: () => () => {}, set: () => true });
+const NOOP_PAGE = { canvas: null, ctx: NOOP_CTX };
 
 function newPage(o) {
   const k = o.pixelRatio || 1;
@@ -561,7 +567,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   // so a long print-quality document never holds every high-resolution page in memory at once.
   const finish = () => {
     const i = pages.length - 1;
-    if (!page || pages[i] === null) return;
+    if (!page || page === NOOP_PAGE || pages[i] === null) return;
     if (o.photo) photoFinish(page.ctx, seed + i);
     if (o.onPage) {
       o.onPage(page.canvas, i);
@@ -574,7 +580,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       return false;
     }
     finish();
-    page = newPage(o);
+    page = o.onlyPage >= 0 && pages.length !== o.onlyPage ? NOOP_PAGE : newPage(o);
     pages.push(page.canvas);
     y = firstBaseline;
     col = 0;
