@@ -18,9 +18,18 @@ export const DEFAULTS = {
   photo: false, // make pages look like a phone photo of paper
   paragraphSpacing: 1, // height of a blank line between paragraphs, in lines
   fitPages: 0, // shrink writing to fit at most this many pages (0 = no limit); applied by the UI
+  columns: 1, // 1, 2 or 3 columns per page
+  margins: 'normal', // normal | narrow | minimal
+  columnRule: false, // thin pen line between columns
+  highlight: '#fff176', // highlighter colour for ==marked== text
 };
 
-const MARGIN = { left: 140, right: 90, top: 150, bottom: 110 };
+const MARGINS = {
+  normal: { left: 140, right: 90, top: 150, bottom: 110 },
+  narrow: { left: 80, right: 55, top: 95, bottom: 70 },
+  minimal: { left: 40, right: 30, top: 50, bottom: 40 },
+};
+const marginsFor = (o) => MARGINS[o.margins] || MARGINS.normal;
 const X_LETTERS = 'acemnorsuvwxz';
 const LIST_RE = /^\s*(-|\d{1,3}[.)]|[a-zA-Z][.)])\s+\S/;
 
@@ -111,6 +120,7 @@ function tinted(glyph, color) {
 }
 
 function drawPaper(ctx, o) {
+  const MARGIN = marginsFor(o);
   ctx.fillStyle = o.paperColor;
   ctx.fillRect(0, 0, PAGE.w, PAGE.h);
   const first = MARGIN.top + o.lineHeight;
@@ -150,7 +160,7 @@ function drawPaper(ctx, o) {
       }
     }
   }
-  if (o.marginLine && o.paper !== 'plain') {
+  if (o.marginLine && o.paper !== 'plain' && MARGIN.left >= 60) {
     ctx.strokeStyle = 'rgba(200,70,70,0.45)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -177,7 +187,11 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   const rand = mulberry32(seed);
   const scale = o.xHeight / font.xHeight;
   const xh = o.xHeight;
-  const maxW = PAGE.w - MARGIN.left - MARGIN.right;
+  const MARGIN = marginsFor(o);
+  const columns = Math.max(1, Math.min(3, Math.round(o.columns) || 1));
+  const colGap = columns > 1 ? Math.max(30, xh * 1.8) : 0;
+  // every paragraph and table is laid out at the width of one column
+  const maxW = (PAGE.w - MARGIN.left - MARGIN.right - colGap * (columns - 1)) / columns;
   const missing = new Set();
   const last = new Map();
   const slantTan = Math.tan((o.slant * Math.PI) / 180);
@@ -216,7 +230,10 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   const U1 = '\u0002';
   const S0 = '\u0003';
   const S1 = '\u0004';
-  const marks = (s) => s.replace(/__(.+?)__/g, `${U0}$1${U1}`).replace(/~~(.+?)~~/g, `${S0}$1${S1}`);
+  const H0 = '\u0005';
+  const H1 = '\u0006';
+  const marks = (s) =>
+    s.replace(/__(.+?)__/g, `${U0}$1${U1}`).replace(/~~(.+?)~~/g, `${S0}$1${S1}`).replace(/==(.+?)==/g, `${H0}$1${H1}`);
 
   // Wrap one paragraph into lines no wider than `width`. List items ("- ", "1. ", "a) ") get a
   // hanging indent so wrapped lines line up under the text, not under the number.
@@ -264,19 +281,24 @@ export function renderDocument(text, font, options = {}, seed = 1) {
 
     let inU = false;
     let inS = false;
+    let inH = false;
     for (const raw of para.trim().split(/ +/)) {
       let text = '';
       // [from, to) character ranges of the word that are underlined / crossed out
       const u = [Infinity, -1];
       const s = [Infinity, -1];
+      const hl = [Infinity, -1];
       for (const c of raw) {
         if (c === U0) inU = true;
         else if (c === U1) inU = false;
         else if (c === S0) inS = true;
         else if (c === S1) inS = false;
+        else if (c === H0) inH = true;
+        else if (c === H1) inH = false;
         else {
           if (inU) (u[0] = Math.min(u[0], text.length)), (u[1] = text.length + 1);
           if (inS) (s[0] = Math.min(s[0], text.length)), (s[1] = text.length + 1);
+          if (inH) (hl[0] = Math.min(hl[0], text.length)), (hl[1] = text.length + 1);
           text += c;
         }
       }
@@ -295,7 +317,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         const r = [before(a), before(b)];
         return r[1] > r[0] ? r : null;
       };
-      addWord(word, { u: toItems(u), s: toItems(s) });
+      addWord(word, { u: toItems(u), s: toItems(s), h: toItems(hl) });
     }
     if (cur.words.length) out.push(cur);
     return out;
@@ -362,7 +384,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     const h = para.match(/^\s*#{1,6}\s+(.*)$/);
     if (h) return o.underlineHeadings ? `__${h[1].trim()}__` : h[1];
     if (!o.underlineHeadings || LIST_RE.test(para)) return para;
-    let m = para.match(/^(\s*)([^:|_~#]{1,50}?)(\s*:-?)\s*$/);
+    let m = para.match(/^(\s*)([^:|_~#=]{1,50}?)(\s*:-?)\s*$/);
     if (m && m[2].trim()) return `${m[1]}__${m[2].trim()}__${m[3]}`;
     m = para.match(/^(\s*)([^:|_~#]{1,30}?)(\s*:-\s.*)$/);
     if (m && m[2].trim() && m[2].trim().split(/\s+/).length <= 4) return `${m[1]}__${m[2].trim()}__${m[3]}`;
@@ -392,6 +414,8 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   let y = 0;
   let truncated = false;
   let pageSlope = 0;
+  let col = 0;
+  const colLeft = () => MARGIN.left + col * (maxW + colGap);
   const plain = o.paper === 'plain';
   const firstBaseline = MARGIN.top + o.lineHeight;
   const bottom = PAGE.h - MARGIN.bottom;
@@ -404,6 +428,13 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     page = newPage(o);
     pages.push(page.canvas);
     y = firstBaseline;
+    col = 0;
+    if (o.columnRule && columns > 1) {
+      for (let c = 1; c < columns; c++) {
+        const x = MARGIN.left + c * (maxW + colGap) - colGap / 2;
+        penLine(x, MARGIN.top + lh * 0.4, x, PAGE.h - MARGIN.bottom);
+      }
+    }
     // Without printed lines people drift: each page gets its own gentle upward tilt.
     pageSlope = plain ? -(0.003 + rand() * 0.008) * o.jitter : 0;
     return true;
@@ -416,6 +447,27 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     let x = x0 + line.x;
     const ctx = page.ctx;
     const deco = [];
+    // highlighter first, underneath the ink
+    {
+      let hx = x0 + line.x;
+      const bands = [];
+      line.words.forEach((word, idx) => {
+        hx += word.gap;
+        if (word.h) {
+          const a = word.items[word.h[0]];
+          const b = word.items[word.h[1] - 1];
+          if (a && b) {
+            const x1 = hx + a.x;
+            const x2 = hx + b.x + b.g.inkW * b.s;
+            const prev = bands[bands.length - 1];
+            if (prev && prev.idx === idx - 1) Object.assign(prev, { x2, idx });
+            else bands.push({ x1, x2, idx });
+          }
+        }
+        hx += word.w;
+      });
+      for (const band of bands) highlighter(band.x1 - xh * 0.2, band.x2 + xh * 0.2, (gx) => by + wobble + slope * (gx - x0));
+    }
     ctx.globalCompositeOperation = 'multiply';
     line.words.forEach((word, idx) => {
       x += word.gap;
@@ -475,6 +527,31 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     }
   }
 
+  // A highlighter pass: a broad translucent band with slightly uneven edges, laid behind the ink.
+  function highlighter(x1, x2, yAt) {
+    const ctx = page.ctx;
+    const n = Math.max(2, Math.round((x2 - x1) / 30));
+    const top = (x) => yAt(x) - xh * (1.15 + (rand() - 0.5) * 0.12);
+    const bot = (x) => yAt(x) + xh * (0.3 + (rand() - 0.5) * 0.12);
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = o.highlight;
+    ctx.beginPath();
+    for (let k = 0; k <= n; k++) {
+      const x = x1 + ((x2 - x1) * k) / n;
+      if (k) ctx.lineTo(x, top(x));
+      else ctx.moveTo(x, top(x));
+    }
+    for (let k = n; k >= 0; k--) {
+      const x = x1 + ((x2 - x1) * k) / n;
+      ctx.lineTo(x, bot(x));
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   // A pen-drawn straight line: short segments with a little wobble.
   function penLine(x1, y1, x2, y2) {
     const ctx = page.ctx;
@@ -520,18 +597,28 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     ctx.restore();
   }
 
+  // Move on when a column is full: next column on the same page, or a new page.
+  const advance = () => {
+    if (col < columns - 1) {
+      col++;
+      y = firstBaseline;
+      return true;
+    }
+    return start();
+  };
+
   if (!start()) return { pages, missing: [...missing], truncated };
 
   outer: for (const b of blocks) {
     if (b.type === 'table') {
       let first = true;
-      const left = MARGIN.left;
-      const right = left + b.colX[b.colX.length - 1];
       for (const row of b.rows) {
         if (y > bottom || y + (row.n - 1) * lh > bottom + lh * 0.5) {
-          if (!start()) break outer;
+          if (!advance()) break outer;
           first = true;
         }
+        const left = colLeft();
+        const right = left + b.colX[b.colX.length - 1];
         const top = y - lh + 8;
         const bot = top + row.n * lh;
         row.cells.forEach((lines, c) => {
@@ -546,10 +633,10 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       continue;
     }
     if (y > bottom) {
-      if (!start()) break;
+      if (!advance()) break;
     }
     if (b.type === 'line') {
-      paintLine(b.line, MARGIN.left, y, true);
+      paintLine(b.line, colLeft(), y, true);
       y += plain ? lh * (1 + (rand() - 0.5) * 0.1 * o.jitter) : lh;
     } else if (y > firstBaseline) {
       // Blank line between paragraphs. Printed lines only allow whole-line gaps; plain paper allows any.
