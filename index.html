@@ -28,7 +28,7 @@
         <button id="photoBtn" type="button" class="primary">Learn from a photo</button>
       </div>
       <h3 class="sub">Write on screen</h3>
-      <p class="muted">Use a finger, stylus or mouse on your phone, tablet or computer. Takes about 5 minutes for all 82 characters.</p>
+      <p class="muted">Use a finger, stylus or mouse on your phone, tablet or computer. Takes about 5 minutes for all 82 characters. For joined writing, also write the common joined pairs (th, he, in…).</p>
       <div class="row">
         <button id="drawBtn" type="button">Write on screen</button>
       </div>
@@ -103,6 +103,15 @@
         <label class="check"><input type="checkbox" data-opt="underlineHeadings" checked> Underline headings</label>
         <label class="check"><input type="checkbox" data-opt="mistakes"> Occasional crossed-out slips</label>
         <label class="check"><input type="checkbox" data-opt="photo"> Photo of paper look</label>
+        <label>Joined writing
+          <select data-opt="joins">
+            <option value="off" selected>Off (letters separate)</option>
+            <option value="some">Some letters joined</option>
+            <option value="most">Most letters joined</option>
+            <option value="all">Fully joined</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" data-opt="reshape" checked> Reshape letters slightly</label>
         <label>Columns
           <select data-opt="columns">
             <option value="1" selected>1 column</option>
@@ -188,6 +197,7 @@
         <option value="all">All characters (adds another version of each)</option>
         <option value="lower">Lowercase a-z</option>
         <option value="alnum">Letters and numbers</option>
+        <option value="pairs">Common joined pairs (th, he, in…)</option>
       </select>
       <p id="drawSetupMsg" class="warn" role="status"></p>
       <div class="row"><button type="button" id="drawStart" class="primary">Start writing</button></div>

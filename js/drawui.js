@@ -7,6 +7,9 @@ import { buildFont } from './render.js';
 const $ = (id) => document.getElementById(id);
 const SENTENCE_W = 520;
 
+// The most common letter pairs in English text. Written joined, they make joined writing look real.
+export const PAIRS = ['th', 'he', 'in', 'er', 'an', 're', 'on', 'at', 'en', 'nd', 'ti', 'es', 'or', 'te', 'of', 'ed', 'is', 'it', 'al', 'ar', 'st', 'to', 'nt', 'ng', 'se', 'ha', 'as', 'ou', 'le', 've', 'co', 'me', 'de', 'hi', 'ri', 'ro', 'ic', 'ne', 'ea', 'ra'];
+
 const NAMES = {
   '.': 'full stop', ',': 'comma', ';': 'semicolon', ':': 'colon', '!': 'exclamation mark',
   '?': 'question mark', "'": 'apostrophe', '"': 'double quote', '-': 'hyphen', '(': 'opening bracket',
@@ -14,6 +17,7 @@ const NAMES = {
   '+': 'plus', '=': 'equals', '*': 'asterisk', '#': 'hash', '_': 'underscore',
 };
 function describe(ch) {
+  if (ch.length === 2) return 'joined pair: write both letters without lifting the pen';
   if (/[a-z]/.test(ch)) return 'lowercase letter';
   if (/[A-Z]/.test(ch)) return 'capital letter';
   if (/[0-9]/.test(ch)) return 'number';
@@ -84,6 +88,7 @@ export function initDrawing({ getGlyphs, addGlyph, removeGlyph, applyLearned, se
       set === 'missing' ? CHARS.filter((c) => !have.has(c))
       : set === 'lower' ? CHARS.filter((c) => /[a-z]/.test(c))
       : set === 'alnum' ? CHARS.filter((c) => /[a-zA-Z0-9]/.test(c))
+      : set === 'pairs' ? PAIRS.filter((c) => !have.has(c))
       : [...CHARS];
     if (!queue.length) {
       $('drawSetupMsg').textContent = 'You have written every character. Choose "All characters" to add another version of each.';

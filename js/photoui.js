@@ -127,6 +127,7 @@ export function initPhoto({ addGlyphs, applyLearned }) {
         `Read ${stats.lines} lines and ${stats.words} words.`,
         `Learned ${glyphs.length} letter samples covering ${got.size} characters` +
           (stats.fromJoined ? ` (${stats.fromJoined} recovered from words with joined letters).` : '.'),
+        ...(stats.joinedPairs ? [`Also kept ${stats.joinedPairs} joined letter pairs in your own hand, used by Joined writing.`] : []),
       ];
       if (missed.length) parts.push(`In the text but not found cleanly: ${missed.join(' ')}`);
       if (Object.keys(learned).length) parts.push('Your letter and word spacing were learned too.');
