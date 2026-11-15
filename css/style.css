@@ -181,3 +181,9 @@ textarea {
 .select.grow { flex: 1 1 220px; width: auto; }
 .inline { font-weight: 600; }
 .controls input[type='number'] { font: inherit; padding: 8px; min-height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); width: 100%; }
+
+/* Sample checker */
+.tile.flagged { border: 2px solid var(--err); background: #fff1f1; }
+.flag-note { border-left: 4px solid var(--err); background: var(--card); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+.flag-note p { margin: 0 0 4px; }
+.check-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }

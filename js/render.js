@@ -27,6 +27,8 @@ export const DEFAULTS = {
   joins: 'off', // joined writing: off | some | most | all
   reshape: true, // gently bend and stretch letters so repeats are never identical
   drawMode: 'ink', // ink: the letters as captured | pen: redrawn from pen strokes (crisp, joins flow)
+  pixelRatio: 1, // 1 = 150 dpi (screen preview); 2 = 300 dpi (printing)
+  onPage: null, // optional callback(canvas, index): pages are handed over one at a time and not kept
 };
 
 const MARGINS = {
@@ -279,10 +281,12 @@ function drawPaper(ctx, o) {
 }
 
 function newPage(o) {
+  const k = o.pixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = PAGE.w;
-  canvas.height = PAGE.h;
+  canvas.width = Math.round(PAGE.w * k);
+  canvas.height = Math.round(PAGE.h * k);
   const ctx = canvas.getContext('2d');
+  ctx.scale(k, k); // everything is drawn in page units; higher ratios just add pixels
   drawPaper(ctx, o);
   return { canvas, ctx };
 }
@@ -553,11 +557,23 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   const firstBaseline = MARGIN.top + o.lineHeight;
   const bottom = PAGE.h - MARGIN.bottom;
   const lh = o.lineHeight;
+  // A finished page gets its photo finish, then (when exporting) is handed over and released,
+  // so a long print-quality document never holds every high-resolution page in memory at once.
+  const finish = () => {
+    const i = pages.length - 1;
+    if (!page || pages[i] === null) return;
+    if (o.photo) photoFinish(page.ctx, seed + i);
+    if (o.onPage) {
+      o.onPage(page.canvas, i);
+      pages[i] = null;
+    }
+  };
   const start = () => {
     if (pages.length >= o.maxPages) {
       truncated = true;
       return false;
     }
+    finish();
     page = newPage(o);
     pages.push(page.canvas);
     y = firstBaseline;
@@ -902,7 +918,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       y += lh * (plain ? o.paragraphSpacing : Math.round(o.paragraphSpacing));
     }
   }
-  if (o.photo) pages.forEach((c, i) => photoFinish(c.getContext('2d'), seed + i));
+  finish();
   return { pages, missing: [...missing], truncated };
 }
 
