@@ -14,6 +14,7 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 2. **Capture from paper.** You write in the boxes, then scan or photograph the sheet. The app finds the four corner squares, corrects perspective and uneven lighting, and cuts out every character as a transparent glyph. Upload two pages to get two variants of every letter.
 3. **Import.** Open a `.docx`, text-based `.pdf`, `.txt` or `.md` file, or paste text. Tables are kept: they appear as `| a | b |` rows (editable, or type your own) and are drawn with hand-ruled borders that follow the paper lines.
 4. **Render.** Headings and labels like `Meaning :-` get pen underlines, lists get hanging indents, `__words__` are underlined and `~~words~~` scribbled out. The **Study notes look** gives plain white paper with natural line drift, a wandering margin, occasional crossed-out slips and a phone-photo finish. Text is laid out on ruled, grid, dotted or plain paper. Each letter picks a random variant with slight changes in size, tilt, baseline and spacing, so repeated letters never look stamped.
+5. **Paper saver.** One, two or three columns, narrow or minimal margins, an optional line between columns, and `==key point==` highlighter marks. The **Paper saver** preset gives dense two-column revision notes.
 5. **Layout controls.** Paragraph spacing sets the gap between paragraphs, and a page limit shrinks the writing just enough to fit a maximum number of pages (down to 55% of the chosen size).
 5. **Export.** Download a PDF or individual PNG pages.
 

@@ -72,7 +72,7 @@
         <ul>
           <li><code># Title</code> gives a heading with a pen underline. Lines like <code>Meaning :-</code> or <code>Main points:</code> are underlined too.</li>
           <li><code>- point</code>, <code>1. step</code> or <code>a) item</code> make lists; long items wrap neatly under the text.</li>
-          <li><code>__key words__</code> underlines words. <code>~~word~~</code> scribbles a word out.</li>
+          <li><code>__key words__</code> underlines words. <code>~~word~~</code> scribbles a word out. <code>==key point==</code> highlights it with a marker.</li>
           <li><code>| Name | Marks |</code> makes a table row. Tables from Word and PDF files come in like this.</li>
         </ul>
       </details>
@@ -103,8 +103,24 @@
         <label class="check"><input type="checkbox" data-opt="underlineHeadings" checked> Underline headings</label>
         <label class="check"><input type="checkbox" data-opt="mistakes"> Occasional crossed-out slips</label>
         <label class="check"><input type="checkbox" data-opt="photo"> Photo of paper look</label>
-        <label>Writing size <output data-out="xHeight">22</output><input type="range" data-opt="xHeight" min="14" max="34" step="1" value="22"></label>
-        <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="40" max="90" step="1" value="58"></label>
+        <label>Columns
+          <select data-opt="columns">
+            <option value="1" selected>1 column</option>
+            <option value="2">2 columns</option>
+            <option value="3">3 columns</option>
+          </select>
+        </label>
+        <label>Margins
+          <select data-opt="margins">
+            <option value="normal" selected>Normal</option>
+            <option value="narrow">Narrow</option>
+            <option value="minimal">Minimal (edge to edge)</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" data-opt="columnRule"> Line between columns</label>
+        <label>Highlighter colour <input type="color" data-opt="highlight" value="#fff176"></label>
+        <label>Writing size <output data-out="xHeight">22</output><input type="range" data-opt="xHeight" min="10" max="34" step="1" value="22"></label>
+        <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="26" max="90" step="1" value="58"></label>
         <label>Letter spacing <output data-out="letterSpacing">0.12</output><input type="range" data-opt="letterSpacing" min="-0.1" max="0.6" step="0.01" value="0.12"></label>
         <label>Word spacing <output data-out="wordSpacing">1</output><input type="range" data-opt="wordSpacing" min="0.5" max="2" step="0.05" value="1"></label>
         <label>Paragraph spacing (lines) <output data-out="paragraphSpacing">1</output><input type="range" data-opt="paragraphSpacing" min="0" max="2.5" step="0.25" value="1"></label>
@@ -114,6 +130,7 @@
       </div>
       <div class="row">
         <button id="notesBtn" type="button" class="primary">Study notes look</button>
+        <button id="saverBtn" type="button">Paper saver</button>
         <button id="spacingBtn" type="button">Learn my spacing</button>
         <button id="shuffleBtn" type="button">Shuffle variation</button>
         <button id="resetBtn" type="button" class="ghost">Reset style</button>

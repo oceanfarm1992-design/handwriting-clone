@@ -381,6 +381,33 @@ function init() {
     schedulePreview(0);
     setStatus('Study notes look applied: plain paper, dark ink, underlined headings, photo finish.', 'ok');
   });
+  // Dense revision notes: two columns of small, tightly spaced writing that saves paper.
+  $('saverBtn').addEventListener('click', () => {
+    const look = {
+      columns: '2',
+      margins: 'narrow',
+      paper: 'plain',
+      paperColor: '#ffffff',
+      marginLine: false,
+      ink: '#1c1d2b',
+      xHeight: 13,
+      lineHeight: 33,
+      letterSpacing: 0.06,
+      wordSpacing: 0.85,
+      paragraphSpacing: 0.25,
+      jitter: 0.6,
+      underlineHeadings: true,
+    };
+    for (const [k, v] of Object.entries(look)) {
+      const el = document.querySelector(`[data-opt="${k}"]`);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+    }
+    readOptions();
+    schedulePreview(0);
+    setStatus('Paper saver applied: two columns of small, tightly spaced writing with narrow margins.', 'ok');
+  });
   $('shuffleBtn').addEventListener('click', () => {
     state.seed = (state.seed * 1664525 + 1013904223) >>> 0;
     schedulePreview(0);
