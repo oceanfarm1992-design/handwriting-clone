@@ -7,6 +7,7 @@ import { makeDemoScan, loadSampleFont, SAMPLE_STYLES } from './demo.js';
 import { initDrawing } from './drawui.js';
 import { initPhoto } from './photoui.js';
 import { metrics, signature, reviewSamples, usableSamples } from './quality.js';
+import { PEN_PRESETS, TEST_INKS, printRisk } from './inkcolor.js';
 
 const $ = (id) => document.getElementById(id);
 // style = spacing learned from the user's own writing (saved with the profile)
@@ -238,6 +239,80 @@ async function handleDocument(file) {
 
 /* ---------- Step 3/4: style + preview ---------- */
 
+function updateInkTools() {
+  const ink = (state.opts.ink || '').toLowerCase();
+  const risk = printRisk(ink);
+  $('inkHint').hidden = !risk;
+  $('inkHint').textContent = risk || '';
+  document.querySelectorAll('#inkPresets .swatch').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.hex === ink)));
+}
+
+function setInk(hex) {
+  const el = document.querySelector('[data-opt="ink"]');
+  el.value = hex;
+  readOptions();
+  schedulePreview(0);
+}
+
+// One page with the writer's own handwriting in a ladder of blues (plus the current ink). Printed
+// once, the line that looks like their real pen gives the ink that matches on that printer.
+async function inkTestPage() {
+  const glyphs = writingGlyphs();
+  if (!glyphs.length) {
+    setStatus('Add your handwriting first (step 1), then print the ink test page.', 'warn');
+    return;
+  }
+  setStatus('Building the ink test page…');
+  await wait();
+  try {
+    const font = buildFont(glyphs);
+    const K = 2; // 300 dpi
+    const page = document.createElement('canvas');
+    page.width = PAGE.w * K;
+    page.height = PAGE.h * K;
+    const ctx = page.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, page.width, page.height);
+    ctx.scale(K, K);
+    ctx.fillStyle = '#111';
+    ctx.font = '600 30px Arial, sans-serif';
+    ctx.fillText('Ink test page', 90, 110);
+    ctx.font = '19px Arial, sans-serif';
+    ctx.fillStyle = '#333';
+    ctx.fillText('Print this page at 100% ("Actual size") on the paper you use. Hold it next to writing from your', 90, 150);
+    ctx.fillText('own pen and choose the line whose colour matches best. The screen may look different: what counts', 90, 176);
+    ctx.fillText('is the printed page. Then pick that letter under "Line that matched your pen" in the app.', 90, 202);
+    const inks = [...TEST_INKS, { label: 'H', hex: state.opts.ink, note: 'your current ink' }];
+    const opts = { ...state.opts, paper: 'plain', paperColor: '#ffffff', columns: 1, margins: 'narrow', xHeight: 20, lineHeight: 56, photo: false, mistakes: false, marginLine: false, fitPages: 0, pixelRatio: K, onlyPage: 0 };
+    inks.forEach((t, i) => {
+      let row = null;
+      renderDocument('The quick brown fox jumps over the lazy dog 2026', font, { ...opts, ink: t.hex, onPage: (c) => (row = c) }, 11 + i);
+      const y = 250 + i * 175;
+      ctx.fillStyle = '#111';
+      ctx.font = '700 40px Arial, sans-serif';
+      ctx.fillText(t.label, 70, y + 70);
+      ctx.font = '14px Arial, sans-serif';
+      ctx.fillStyle = '#555';
+      ctx.fillText(t.hex, 70, y + 98);
+      if (t.note) ctx.fillText(t.note, 70, y + 118);
+      // the first line of writing: top margin (narrow) .. one and a half lines below
+      ctx.drawImage(row, 80 * K, 40 * K, (PAGE.w - 230) * K, 130 * K, 170, y, PAGE.w - 230, 130);
+      ctx.strokeStyle = '#ddd';
+      ctx.beginPath();
+      ctx.moveTo(60, y + 150);
+      ctx.lineTo(PAGE.w - 60, y + 150);
+      ctx.stroke();
+    });
+    const jsPDF = await loadJsPdf();
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    pdf.addImage(page.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
+    pdf.save('ink-test-page.pdf');
+    setStatus('Ink test page saved. Print it, compare with your pen, then choose the matching line.', 'ok');
+  } catch (e) {
+    setStatus(e.message || 'Could not build the ink test page.', 'error');
+  }
+}
+
 function readOptions() {
   document.querySelectorAll('[data-opt]').forEach((el) => {
     const k = el.dataset.opt;
@@ -249,6 +324,7 @@ function readOptions() {
     const out = document.querySelector(`[data-out="${k}"]`);
     if (out) out.textContent = el.value;
   });
+  updateInkTools();
 }
 
 let timer = 0;
@@ -525,6 +601,22 @@ function init() {
     schedulePreview(0);
   });
   $('pdfBtn').addEventListener('click', exportPdf);
+  for (const p of PEN_PRESETS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.dataset.hex = p.hex;
+    b.innerHTML = `<span class="dot" style="background:${p.hex}"></span>${p.name}`;
+    b.addEventListener('click', () => setInk(p.hex));
+    $('inkPresets').append(b);
+  }
+  for (const t of [...TEST_INKS, { label: 'H' }]) $('inkTestPick').add(new Option(`Line ${t.label}`, t.label));
+  $('inkTestBtn').addEventListener('click', inkTestPage);
+  $('inkTestPick').addEventListener('change', (e) => {
+    const t = TEST_INKS.find((x) => x.label === e.target.value);
+    if (t) setInk(t.hex);
+    if (e.target.value) setStatus(`Ink set to line ${e.target.value}${t ? ` (${t.hex})` : ' (unchanged)'}: it printed closest to your pen. It may look different on screen; the printed page is what counts.`, 'ok');
+  });
   $('resetBtn').addEventListener('click', () => {
     document.querySelectorAll('[data-opt]').forEach((el) => {
       const v = DEFAULTS[el.dataset.opt];
