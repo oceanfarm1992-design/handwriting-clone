@@ -187,3 +187,12 @@ textarea {
 .flag-note { border-left: 4px solid var(--err); background: var(--card); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
 .flag-note p { margin: 0 0 4px; }
 .check-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+
+/* Pen colours */
+.ink-tools { grid-column: 1 / -1; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { min-height: 36px; padding: 4px 12px 4px 6px; font-size: 14px; font-weight: 500; gap: 8px; }
+.swatch .dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.2); display: inline-block; }
+.swatch[aria-pressed='true'] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.select.narrow { width: auto; min-height: 36px; padding: 4px 8px; }
+#inkHint { margin: 8px 0 0; }

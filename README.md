@@ -19,7 +19,8 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 5. **Paper saver.** One, two or three columns, narrow or minimal margins, an optional line between columns, and `==key point==` highlighter marks. The **Paper saver** preset gives dense two-column revision notes.
 5. **Layout controls.** Paragraph spacing sets the gap between paragraphs, and a page limit shrinks the writing just enough to fit a maximum number of pages (down to 55% of the chosen size).
 5. **Sample checker.** Samples that would print wrongly (a number floating above the line, a "p" without its tail, a capital as small as a lower-case letter, or a sample that looks unlike your other samples of that character) are outlined in red with the reason, left out automatically when a better sample exists, and can be removed in one click.
-5. **Export.** PDFs and page images are drawn at 300 dpi and stored losslessly, so printed letters have clean edges. Download a PDF or individual PNG pages.
+5. **Pen colours that print true.** Screens can show blues that printers cannot mix; those print lighter and greyer. The app warns when an ink will print differently, offers pen colours that print reliably, and makes an ink test page with your handwriting in a ladder of blues, so you can pick the line that matches your real pen on your printer.
+5. **Export.** PDFs and page images are drawn at 300 dpi, so printed letters have clean edges; pages are prepared one at a time with progress, so even long documents export in seconds. Download a PDF or individual PNG pages.
 
 ## Try it
 

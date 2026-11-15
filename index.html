@@ -89,6 +89,16 @@
       <h2 id="h3"><span class="n">3</span>Tune the style</h2>
       <div class="controls">
         <label>Ink colour <input type="color" data-opt="ink" value="#1f2a6b"></label>
+        <div class="ink-tools">
+          <div class="swatches" id="inkPresets" role="group" aria-label="Pen colours that print well"></div>
+          <p id="inkHint" class="warn" role="status" hidden></p>
+          <div class="row small">
+            <button id="inkTestBtn" type="button" class="ghost">Print ink test page</button>
+            <label class="check-inline" for="inkTestPick">Line that matched your pen
+              <select id="inkTestPick" class="select narrow"><option value="">choose…</option></select>
+            </label>
+          </div>
+        </div>
         <label>Paper
           <select data-opt="paper">
             <option value="ruled">Ruled</option>
