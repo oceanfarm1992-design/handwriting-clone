@@ -17,7 +17,7 @@
   </header>
 
   <main class="wrap">
-    <p id="status" class="status" role="status" aria-live="polite" data-kind="info">Start by loading the demo, or print the template and capture your own writing.</p>
+    <p id="status" class="status" role="status" aria-live="polite" data-kind="info">Start by picking a sample handwriting, or capture your own from a photo, on screen or with the template.</p>
 
     <section class="card" aria-labelledby="h1">
       <h2 id="h1"><span class="n">1</span>Capture your handwriting</h2>
@@ -26,7 +26,6 @@
       <p class="muted">Photograph a page of notes you already wrote, or copy a short practice paragraph onto any paper. Tell the app what the page says and it finds your letters, and your spacing, by itself.</p>
       <div class="row">
         <button id="photoBtn" type="button" class="primary">Learn from a photo</button>
-        <button id="demoBtn" type="button">Try demo handwriting</button>
       </div>
       <h3 class="sub">Write on screen</h3>
       <p class="muted">Use a finger, stylus or mouse on your phone, tablet or computer. Takes about 5 minutes for all 82 characters.</p>
@@ -48,6 +47,13 @@
         <label class="btn ghost">Load profile<input id="loadProfileInput" type="file" accept="application/json,.json" hidden></label>
         <button id="saveProfileBtn" type="button" class="ghost" disabled>Save profile</button>
         <button id="clearBtn" type="button" class="ghost" disabled>Remove my handwriting</button>
+      </div>
+      <h3 class="sub">Or pick a sample handwriting</h3>
+      <p class="muted">Ready-made styles for trying the app, or for when you would rather not use your own. These are open handwriting fonts, not real people's writing. All except the first are fetched from Google Fonts when chosen.</p>
+      <div class="row">
+        <label class="inline" for="sampleSelect">Style</label>
+        <select id="sampleSelect" class="select grow"></select>
+        <button id="demoBtn" type="button">Use this sample</button>
       </div>
       <p id="glyphSummary" class="muted">No handwriting yet.</p>
       <div id="glyphGrid" class="glyphs"></div>
@@ -101,6 +107,8 @@
         <label>Line height <output data-out="lineHeight">58</output><input type="range" data-opt="lineHeight" min="40" max="90" step="1" value="58"></label>
         <label>Letter spacing <output data-out="letterSpacing">0.12</output><input type="range" data-opt="letterSpacing" min="-0.1" max="0.6" step="0.01" value="0.12"></label>
         <label>Word spacing <output data-out="wordSpacing">1</output><input type="range" data-opt="wordSpacing" min="0.5" max="2" step="0.05" value="1"></label>
+        <label>Paragraph spacing (lines) <output data-out="paragraphSpacing">1</output><input type="range" data-opt="paragraphSpacing" min="0" max="2.5" step="0.25" value="1"></label>
+        <label>Fit into at most (pages, 0 = no limit) <input type="number" data-opt="fitPages" min="0" max="40" step="1" value="0" inputmode="numeric"></label>
         <label>Natural variation <output data-out="jitter">0.5</output><input type="range" data-opt="jitter" min="0" max="1" step="0.05" value="0.5"></label>
         <label>Slant (degrees) <output data-out="slant">0</output><input type="range" data-opt="slant" min="-15" max="15" step="1" value="0"></label>
       </div>

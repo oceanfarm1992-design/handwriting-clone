@@ -16,6 +16,8 @@ export const DEFAULTS = {
   underlineHeadings: true, // pen-underline headings and labels like "Meaning :-"
   mistakes: false, // occasionally scribble out a false start
   photo: false, // make pages look like a phone photo of paper
+  paragraphSpacing: 1, // height of a blank line between paragraphs, in lines
+  fitPages: 0, // shrink writing to fit at most this many pages (0 = no limit); applied by the UI
 };
 
 const MARGIN = { left: 140, right: 90, top: 150, bottom: 110 };
@@ -546,8 +548,13 @@ export function renderDocument(text, font, options = {}, seed = 1) {
     if (y > bottom) {
       if (!start()) break;
     }
-    if (b.type === 'line') paintLine(b.line, MARGIN.left, y, true);
-    y += plain ? lh * (1 + (rand() - 0.5) * 0.1 * o.jitter) : lh;
+    if (b.type === 'line') {
+      paintLine(b.line, MARGIN.left, y, true);
+      y += plain ? lh * (1 + (rand() - 0.5) * 0.1 * o.jitter) : lh;
+    } else if (y > firstBaseline) {
+      // Blank line between paragraphs. Printed lines only allow whole-line gaps; plain paper allows any.
+      y += lh * (plain ? o.paragraphSpacing : Math.round(o.paragraphSpacing));
+    }
   }
   if (o.photo) pages.forEach((c, i) => photoFinish(c.getContext('2d'), seed + i));
   return { pages, missing: [...missing], truncated };
