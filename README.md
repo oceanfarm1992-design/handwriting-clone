@@ -77,9 +77,13 @@ PDF.js, mammoth.js and jsPDF are loaded from the jsDelivr CDN on demand.
 - Orientation detection for rotated scans
 - Preserving bold and headings from Word documents; merged table cells; ruled lines drawn inside PDF tables
 
-## Responsible use
+## Disclaimer
 
-Use your own handwriting, or handwriting you have clear permission to copy. Do not use this to forge signatures, impersonate others, or submit work in a way your school or employer forbids. Handwriting is personal data: samples stay in your browser, and **Remove my handwriting** deletes the saved copy.
+Handwriting Clone is for **personal study and educational use only**. Use only your own handwriting, or handwriting you have clear permission to use, and only for lawful purposes. Do not use it to forge signatures or documents, impersonate anyone, commit fraud, or break exam, school, workplace or legal rules.
+
+You are solely responsible for how you use it and for what you create with it. The software is provided **"as is", without warranty of any kind**, and the developers and contributors accept no responsibility or liability for any misuse, criminal or unlawful activity, or any loss, damage or legal consequence arising from its use. See [DISCLAIMER.md](DISCLAIMER.md) and the [MIT licence](LICENSE).
+
+Handwriting is personal data: samples stay in your browser, and **Remove my handwriting** deletes the saved copy.
 
 ## Repository bots
 
