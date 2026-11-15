@@ -1,5 +1,6 @@
 // Lays text out on A4 pages using the captured glyph library.
 import { PAGE } from './template.js';
+import { joinPoints } from './joins.js';
 
 export const DEFAULTS = {
   ink: '#1f2a6b',
@@ -22,6 +23,8 @@ export const DEFAULTS = {
   margins: 'normal', // normal | narrow | minimal
   columnRule: false, // thin pen line between columns
   highlight: '#fff176', // highlighter colour for ==marked== text
+  joins: 'off', // joined writing: off | some | most | all
+  reshape: true, // gently bend and stretch letters so repeats are never identical
 };
 
 const MARGINS = {
@@ -68,7 +71,10 @@ export function buildFont(glyphs) {
     const s = [...a].sort((x, y) => x - y);
     return s.length ? s[Math.floor(s.length / 2)] : null;
   };
-  const sourceXh = (list) => median(list.filter((g) => X_LETTERS.includes(g.ch)).map((g) => g.inkH)) ?? median(list.map((g) => g.inkH));
+  const sourceXh = (list) =>
+    median(list.filter((g) => g.ch.length === 1 && X_LETTERS.includes(g.ch)).map((g) => g.inkH)) ??
+    median(list.filter((g) => g.ch.length === 1).map((g) => g.inkH)) ??
+    median(list.map((g) => g.inkH));
   const groups = new Map();
   for (const g of glyphs) {
     const k = g.src || 'scan';
@@ -117,6 +123,69 @@ function tinted(glyph, color) {
     m.set(color, c);
   }
   return c;
+}
+
+
+// ---------- joined writing ----------
+const JOIN_P = { off: 0, some: 0.4, most: 0.75, all: 1 };
+const joinable = (ch) => /^[a-z]{1,2}$/.test(ch);
+
+/** Entry/exit points of a sample (cached). xhSrc is the x-height in the sample's own pixels. */
+const anchorCache = new WeakMap();
+function anchorsOf(g, xhSrc) {
+  if (!anchorCache.has(g)) {
+    const { width: w, height: h } = g.canvas;
+    const data = g.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    const alpha = new Uint8Array(w * h);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    anchorCache.set(g, joinPoints(alpha, w, h, { base: h - g.pad - g.yOff, xh: xhSrc, scaleMax: 255 }));
+  }
+  return anchorCache.get(g);
+}
+
+/**
+ * Two reshaped copies of a sample: rows sway sideways, columns sway up and down, and the width
+ * changes a little, the way the same letter never comes out quite the same twice.
+ * Each copy keeps a `map` from original to reshaped coordinates so join points follow the ink.
+ */
+const variantCache = new WeakMap();
+function variantsOf(g) {
+  if (!variantCache.has(g)) {
+    const r = mulberry32(((g.id || 1) * 7919) ^ 0x5bd1);
+    const list = [];
+    for (let k = 0; k < 2; k++) {
+      const { width: w, height: h } = g.canvas;
+      const A = (0.5 + r()) * Math.min(2.2, h * 0.03);
+      const B = (0.5 + r()) * Math.min(1.6, h * 0.02);
+      const f1 = 0.6 + r() * 0.8;
+      const f2 = 0.6 + r() * 0.8;
+      const p1 = r() * Math.PI * 2;
+      const p2 = r() * Math.PI * 2;
+      const sx = 1 + (r() - 0.5) * 0.12;
+      const M = 3;
+      const W = Math.ceil(w * Math.max(1, sx)) + 2 * M;
+      const H = h + 2 * M;
+      const dx = (y) => A * Math.sin(p1 + (y / h) * Math.PI * 2 * f1);
+      const dy = (x) => B * Math.sin(p2 + (x / W) * Math.PI * 2 * f2);
+      const c1 = document.createElement('canvas');
+      c1.width = W;
+      c1.height = H;
+      const x1c = c1.getContext('2d');
+      for (let y = 0; y < h; y++) x1c.drawImage(g.canvas, 0, y, w, 1, M + g.pad * (1 - sx) + dx(y), y + M, w * sx, 1);
+      const c2 = document.createElement('canvas');
+      c2.width = W;
+      c2.height = H;
+      const x2c = c2.getContext('2d');
+      for (let x = 0; x < W; x++) x2c.drawImage(c1, x, 0, 1, H, x, dy(x), 1, H);
+      const map = (x, y) => {
+        const nx = M + g.pad + (x - g.pad) * sx + dx(y);
+        return [nx, y + M + dy(nx)];
+      };
+      list.push({ ...g, canvas: c2, pad: g.pad + M, inkW: g.inkW * sx, base: g, map });
+    }
+    variantCache.set(g, list);
+  }
+  return variantCache.get(g);
 }
 
 function drawPaper(ctx, o) {
@@ -196,31 +265,44 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   const last = new Map();
   const slantTan = Math.tan((o.slant * Math.PI) / 180);
 
+  const joinP = JOIN_P[o.joins] ?? 0;
   function placeWord(str) {
+    const chars = [...str];
     const items = [];
+    const map = []; // character index -> item index, or -1 when there is no sample for it
     let w = 0;
-    for (const c of str) {
-      const variants = font.byChar.get(c);
+    const j = o.jitter;
+    for (let i = 0; i < chars.length; i++) {
+      const c = chars[i];
+      // the writer's own joined pair (th, he, in...) when there is one
+      const pairKey = joinP > 0 && i + 1 < chars.length ? c + chars[i + 1] : null;
+      const pair = pairKey && font.byChar.get(pairKey);
+      const usePair = pair && rand() < 0.8;
+      const key = usePair ? pairKey : c;
+      const variants = usePair ? pair : font.byChar.get(c);
       if (!variants) {
         missing.add(c);
+        map.push(-1);
         continue;
       }
       let g = variants[Math.floor(rand() * variants.length)];
-      if (variants.length > 1 && last.get(c) === g) g = variants[(variants.indexOf(g) + 1) % variants.length];
-      last.set(c, g);
-      const j = o.jitter;
+      if (variants.length > 1 && last.get(key) === g) g = variants[(variants.indexOf(g) + 1) % variants.length];
+      last.set(key, g);
+      if (o.reshape && j > 0 && rand() < 0.35 + 0.5 * j) g = variantsOf(g)[rand() < 0.5 ? 0 : 1];
       const s = scale * (g.norm || 1) * (1 + (rand() - 0.5) * 0.14 * j);
-      const item = {
-        g,
-        s,
-        rot: (rand() - 0.5) * 0.08 * j,
-        dy: (rand() - 0.5) * xh * 0.14 * j,
-        x: w,
-      };
-      w += g.inkW * s + o.letterSpacing * xh * (1 + (rand() - 0.5) * 0.7 * j);
-      items.push(item);
+      const prev = items[items.length - 1];
+      const join = !!prev && joinP > 0 && prev.ci === i - 1 && joinable(prev.g.ch) && joinable(g.ch) && rand() < joinP;
+      // joined letters keep a short visible stroke between them, like real joined writing
+      if (prev) w += join ? Math.max(o.letterSpacing, 0.28) * xh * (1 + (rand() - 0.5) * 0.4 * j) : o.letterSpacing * xh * (1 + (rand() - 0.5) * 0.7 * j);
+      items.push({ g, s, rot: (rand() - 0.5) * 0.08 * j, dy: (rand() - 0.5) * xh * 0.14 * j, x: w, join, ci: i + (usePair ? 1 : 0) });
+      map.push(items.length - 1);
+      if (usePair) {
+        map.push(items.length - 1);
+        i++;
+      }
+      w += g.inkW * s;
     }
-    return { items, w };
+    return { items, w, map };
   }
 
   const spaceW = () => xh * 1.05 * o.wordSpacing * (1 + (rand() - 0.5) * 0.3 * o.jitter);
@@ -310,12 +392,10 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       }
       // Map character ranges onto placed glyphs (characters without a glyph were skipped).
       const word = placeWord(text);
-      const kept = [...text].map((c) => font.byChar.has(c));
       const toItems = ([a, b]) => {
         if (b < 0) return null;
-        const before = (n) => kept.slice(0, n).filter(Boolean).length;
-        const r = [before(a), before(b)];
-        return r[1] > r[0] ? r : null;
+        const idx = word.map.slice(a, b).filter((k) => k >= 0);
+        return idx.length ? [Math.min(...idx), Math.max(...idx) + 1] : null;
       };
       addWord(word, { u: toItems(u), s: toItems(s), h: toItems(hl) });
     }
@@ -469,13 +549,31 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       for (const band of bands) highlighter(band.x1 - xh * 0.2, band.x2 + xh * 0.2, (gx) => by + wobble + slope * (gx - x0));
     }
     ctx.globalCompositeOperation = 'multiply';
+    const joins = [];
     line.words.forEach((word, idx) => {
       x += word.gap;
       const wx = x;
+      let prevExit = null;
       for (const it of word.items) {
         const gx = x + it.x;
         const baseY = by + wobble + it.dy + slope * (gx - x0);
         const g = it.g;
+        if (joinP > 0) {
+          // sample pixel -> page, exactly as the glyph is drawn below (scale, slant, rotation)
+          const toPage = (px, py) => {
+            let lx = (px - g.pad) * it.s;
+            const ly = (g.yOff - (g.canvas.height - g.pad) + py) * it.s;
+            if (slantTan) lx -= slantTan * ly;
+            const c = Math.cos(it.rot);
+            const sn = Math.sin(it.rot);
+            return [gx + lx * c - ly * sn, baseY + lx * sn + ly * c];
+          };
+          const src = g.base || g;
+          const an = joinable(g.ch) ? anchorsOf(src, font.xHeight / (src.norm || 1)) : null;
+          const place = (pt) => toPage(...(g.map ? g.map(pt.x, pt.y) : [pt.x, pt.y]));
+          if (an && it.join && prevExit) joins.push({ from: prevExit.p, to: place(an.entry), w: (prevExit.w + an.width * it.s) / 2 });
+          prevExit = an ? { p: place(an.exit), w: an.width * it.s } : null;
+        }
         ctx.save();
         ctx.translate(gx, baseY);
         ctx.rotate(it.rot);
@@ -501,6 +599,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         if (sp) deco.push({ idx, kind, x1: sp[0], x2: sp[1], whole: word[kind][0] === 0 && word[kind][1] === word.items.length });
       }
     });
+    for (const jn of joins) connector(jn.from, jn.to, jn.w);
     ctx.globalCompositeOperation = 'source-over';
 
     const yAt = (gx) => by + wobble + slope * (gx - x0);
@@ -525,6 +624,25 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         }
       }
     }
+  }
+
+  // The pen stroke that joins one letter to the next: a smooth curve that dips slightly, in the
+  // same ink and about the same width as the letters it joins.
+  function connector([x1, y1], [x2, y2], width) {
+    const ctx = page.ctx;
+    const dx = x2 - x1;
+    if (dx < -xh * 0.2 || dx > xh * 2.2 || Math.abs(y2 - y1) > xh * 1.4) return; // not a sensible join
+    ctx.save();
+    ctx.strokeStyle = o.ink;
+    ctx.globalAlpha = 0.88;
+    ctx.lineWidth = Math.max(1, width * 0.8);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const sag = xh * (0.06 + rand() * 0.08);
+    ctx.bezierCurveTo(x1 + dx * 0.45, Math.max(y1, y2) + sag, x2 - dx * 0.35, y2 + sag * 0.3, x2, y2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // A highlighter pass: a broad translucent band with slightly uneven edges, laid behind the ink.

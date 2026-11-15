@@ -484,6 +484,7 @@ export function harvest(luma, w, h, transcript, { maxVariants = 4 } = {}) {
 
   // ---- pass 2: words with joined letters
   const second = new Map();
+  const pairCands = []; // whole two-letter blobs, kept only if both cut pieces are confirmed
   let decoded = 0;
   for (const p of joinedPairs) {
     const units = p.word.units;
@@ -543,12 +544,18 @@ export function harvest(luma, w, h, transcript, { maxVariants = 4 } = {}) {
         }
         if (cutX > 0 && ink <= Math.max(2, 0.2 * xh)) {
           const parts = [slice(seg, unit, unit.minx, cutX), slice(seg, unit, cutX + 1, unit.maxx)];
-          parts.forEach((part, t) => {
-            if (!part || !consensus.has(run[t])) return; // a cut piece must match a known letter
+          const pieces = parts.map((part, t) => {
+            if (!part || !consensus.has(run[t])) return null; // a cut piece must match a known letter
             const cand = measure(run[t], part, p.word.line);
             cand.split = cand.joined = true;
-            if (plausible(cand.ch, cand)) add(second, cand);
+            if (!plausible(cand.ch, cand)) return null;
+            add(second, cand);
+            return cand;
           });
+          // the uncut blob is a real joined pair in the writer's own hand
+          if (pieces[0] && pieces[1] && /^[a-z]{2}$/.test(run.join(''))) {
+            pairCands.push({ ch: run.join(''), unit, baseline: p.word.line.base(unit.cx), pieces, joined: true });
+          }
         }
       }
       j -= n;
@@ -571,6 +578,17 @@ export function harvest(luma, w, h, transcript, { maxVariants = 4 } = {}) {
     kept.set(ch, [...(kept.get(ch) || []), ...keep]);
   }
 
+  // a pair survives only when both of its pieces passed the shape check above
+  const confirmed = new Set([...kept.values()].flat());
+  const pairGlyphs = new Map();
+  for (const pc of pairCands) {
+    if (!pc.pieces.every((c) => confirmed.has(c))) continue;
+    pc.score = Math.min(...pc.pieces.map((c) => c.score ?? 0.6));
+    if (!pairGlyphs.has(pc.ch)) pairGlyphs.set(pc.ch, []);
+    pairGlyphs.get(pc.ch).push(pc);
+  }
+  for (const [ch, list] of pairGlyphs) kept.set(ch, list.sort((a, b) => b.score - a.score));
+
   const glyphs = [];
   for (const [ch, list] of kept) {
     for (const c of list.slice(0, maxVariants)) {
@@ -589,7 +607,8 @@ export function harvest(luma, w, h, transcript, { maxVariants = 4 } = {}) {
     matchedWords: matched,
     decodedJoinedWords: decoded,
     joinedWords: joinedPairs.length,
-    fromJoined: glyphs.filter((g) => g.joined).length,
+    fromJoined: glyphs.filter((g) => g.joined && g.ch.length === 1).length,
+    joinedPairs: glyphs.filter((g) => g.ch.length === 2).length,
     rejected,
     xHeight: xh,
     wordSpacing: wordGaps.length >= 5 ? +clamp(med(wordGaps) / 1.05, 0.5, 2).toFixed(2) : null,
