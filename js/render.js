@@ -1,6 +1,7 @@
 // Lays text out on A4 pages using the captured glyph library.
 import { PAGE } from './template.js';
 import { joinPoints } from './joins.js';
+import { traceStrokes, strokeAnchors, blendStrokes, bendStrokes, smoothPath, coverage } from './strokes.js';
 
 export const DEFAULTS = {
   ink: '#1f2a6b',
@@ -25,6 +26,7 @@ export const DEFAULTS = {
   highlight: '#fff176', // highlighter colour for ==marked== text
   joins: 'off', // joined writing: off | some | most | all
   reshape: true, // gently bend and stretch letters so repeats are never identical
+  drawMode: 'ink', // ink: the letters as captured | pen: redrawn from pen strokes (crisp, joins flow)
 };
 
 const MARGINS = {
@@ -188,6 +190,43 @@ function variantsOf(g) {
   return variantCache.get(g);
 }
 
+
+// ---------- letters as pen strokes ----------
+const PEN_W = 4; // on-screen pen width in pad units (same as drawpad.js)
+
+/**
+ * A sample's pen strokes in reference units: baseline at y = 0, left of the ink at x = 0, scaled by
+ * g.norm to the common size. On-screen samples use the strokes as written (with pen pressure);
+ * scanned and photographed samples are traced from their image.
+ */
+const refCache = new WeakMap();
+function refStrokesOf(g) {
+  const k = g.norm || 1;
+  const hit = refCache.get(g);
+  if (hit && hit.k === k) return hit.ref;
+  const { width: w, height: h } = g.canvas;
+  const base = h - g.pad - g.yOff;
+  let strokes;
+  if (Array.isArray(g.strokes) && g.strokes.length) {
+    // pad units -> sample pixels, with the same origin glyphFromStrokes used for the image
+    const pts = g.strokes.flat();
+    const half = (PEN_W * 1.45) / 2 + 0.5;
+    const ox = Math.floor(Math.min(...pts.map((q) => q.x)) - half) - g.pad;
+    const oy = Math.floor(Math.min(...pts.map((q) => q.y)) - half) - g.pad;
+    strokes = g.strokes.filter((st) => st.length).map((st) => ({ pts: st.map((q) => ({ x: q.x - ox, y: q.y - oy, w: PEN_W * (0.55 + 0.9 * (q.p ?? 0.5)) })) }));
+  } else {
+    const data = g.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    const alpha = new Uint8Array(w * h);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    strokes = traceStrokes(alpha, w, h, { scaleMax: 255 });
+    // a trace that misses part of the letter would change what it says: use the ink instead
+    if (coverage(strokes, alpha, w, h, { scaleMax: 255 }) < 0.85) strokes = [];
+  }
+  const ref = strokes.map((st) => ({ pts: st.pts.map((q) => ({ x: (q.x - g.pad) * k, y: (q.y - base) * k, w: q.w * k })) }));
+  refCache.set(g, { k, ref });
+  return ref;
+}
+
 function drawPaper(ctx, o) {
   const MARGIN = marginsFor(o);
   ctx.fillStyle = o.paperColor;
@@ -266,6 +305,7 @@ export function renderDocument(text, font, options = {}, seed = 1) {
   const slantTan = Math.tan((o.slant * Math.PI) / 180);
 
   const joinP = JOIN_P[o.joins] ?? 0;
+  const pen = o.drawMode === 'pen';
   function placeWord(str) {
     const chars = [...str];
     const items = [];
@@ -288,13 +328,26 @@ export function renderDocument(text, font, options = {}, seed = 1) {
       let g = variants[Math.floor(rand() * variants.length)];
       if (variants.length > 1 && last.get(key) === g) g = variants[(variants.indexOf(g) + 1) % variants.length];
       last.set(key, g);
-      if (o.reshape && j > 0 && rand() < 0.35 + 0.5 * j) g = variantsOf(g)[rand() < 0.5 ? 0 : 1];
+      let shape = null;
+      if (pen) {
+        let st = refStrokesOf(g);
+        if (st.length && o.reshape && j > 0) {
+          // a new in-between shape from two of the writer's samples, then a gentle bend
+          const others = variants.filter((v) => v !== g);
+          if (others.length && rand() < 0.7) {
+            const mixed = blendStrokes(st, refStrokesOf(others[Math.floor(rand() * others.length)]), 0.2 + rand() * 0.6, font.xHeight);
+            if (mixed) st = mixed;
+          }
+          st = bendStrokes(st, font.xHeight, rand, j);
+        }
+        if (st.length) shape = { strokes: st, anchors: joinable(g.ch) ? strokeAnchors(st, font.xHeight) : null };
+      } else if (o.reshape && j > 0 && rand() < 0.35 + 0.5 * j) g = variantsOf(g)[rand() < 0.5 ? 0 : 1];
       const s = scale * (g.norm || 1) * (1 + (rand() - 0.5) * 0.14 * j);
       const prev = items[items.length - 1];
       const join = !!prev && joinP > 0 && prev.ci === i - 1 && joinable(prev.g.ch) && joinable(g.ch) && rand() < joinP;
       // joined letters keep a short visible stroke between them, like real joined writing
       if (prev) w += join ? Math.max(o.letterSpacing, 0.28) * xh * (1 + (rand() - 0.5) * 0.4 * j) : o.letterSpacing * xh * (1 + (rand() - 0.5) * 0.7 * j);
-      items.push({ g, s, rot: (rand() - 0.5) * 0.08 * j, dy: (rand() - 0.5) * xh * 0.14 * j, x: w, join, ci: i + (usePair ? 1 : 0) });
+      items.push({ g, s, shape, rot: (rand() - 0.5) * 0.08 * j, dy: (rand() - 0.5) * xh * 0.14 * j, x: w, join, ci: i + (usePair ? 1 : 0) });
       map.push(items.length - 1);
       if (usePair) {
         map.push(items.length - 1);
@@ -558,6 +611,35 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         const gx = x + it.x;
         const baseY = by + wobble + it.dy + slope * (gx - x0);
         const g = it.g;
+        if (it.shape) {
+          // reference units -> page: scale, slant, rotation, position (as the image would be drawn)
+          const k2 = it.s / (g.norm || 1);
+          const c = Math.cos(it.rot);
+          const sn = Math.sin(it.rot);
+          const toPage = (xr, yr) => {
+            let lx = xr * k2;
+            const ly = yr * k2;
+            if (slantTan) lx -= slantTan * ly;
+            return [gx + lx * c - ly * sn, baseY + lx * sn + ly * c];
+          };
+          penLetter(it.shape.strokes, toPage, k2);
+          const an = it.shape.anchors;
+          const at = (pt) => {
+            const [px, py] = toPage(pt.x, pt.y);
+            const [qx, qy] = toPage(pt.x + pt.tx, pt.y + pt.ty);
+            const n = Math.hypot(qx - px, qy - py) || 1;
+            return { x: px, y: py, tx: (qx - px) / n, ty: (qy - py) / n };
+          };
+          const avgW = (st) => {
+            const all = st.flatMap((q) => q.pts);
+            return (all.reduce((m, q) => m + q.w, 0) / Math.max(1, all.length)) * k2;
+          };
+          if (joinP > 0) {
+            if (an && it.join && prevExit) joins.push({ from: prevExit.p, to: at(an.entry), w: (prevExit.w + avgW(it.shape.strokes)) / 2, flow: true });
+            prevExit = an ? { p: at(an.exit), w: avgW(it.shape.strokes) } : null;
+          }
+          continue;
+        }
         if (joinP > 0) {
           // sample pixel -> page, exactly as the glyph is drawn below (scale, slant, rotation)
           const toPage = (px, py) => {
@@ -599,7 +681,13 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         if (sp) deco.push({ idx, kind, x1: sp[0], x2: sp[1], whole: word[kind][0] === 0 && word[kind][1] === word.items.length });
       }
     });
-    for (const jn of joins) connector(jn.from, jn.to, jn.w);
+    // a join may run between a pen-stroke letter and one drawn from ink (when its trace was poor):
+    // follow the pen's direction only when both ends know it
+    const xy = (q) => (Array.isArray(q) ? q : [q.x, q.y]);
+    for (const jn of joins) {
+      if (jn.from.tx !== undefined && jn.to.tx !== undefined) flowJoin(jn.from, jn.to, jn.w);
+      else connector(xy(jn.from), xy(jn.to), jn.w);
+    }
     ctx.globalCompositeOperation = 'source-over';
 
     const yAt = (gx) => by + wobble + slope * (gx - x0);
@@ -624,6 +712,59 @@ export function renderDocument(text, font, options = {}, seed = 1) {
         }
       }
     }
+  }
+
+  // Draw one letter from its pen strokes: smooth curves whose width follows the ink.
+  function penLetter(strokes, toPage, k2) {
+    const ctx = page.ctx;
+    ctx.save();
+    ctx.strokeStyle = ctx.fillStyle = o.ink;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const st of strokes) {
+      ctx.globalAlpha = 0.86 + rand() * 0.08;
+      if (st.pts.length === 1) {
+        const [px, py] = toPage(st.pts[0].x, st.pts[0].y);
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.8, (st.pts[0].w * k2) / 2), 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      const pts = smoothPath(st.pts, 5).map((q) => ({ p: toPage(q.x, q.y), w: Math.max(0.8, q.w * k2) }));
+      // runs of similar width share one path, so long strokes stay fast to draw
+      let i = 0;
+      while (i < pts.length - 1) {
+        const w0 = pts[i].w;
+        ctx.lineWidth = w0;
+        ctx.beginPath();
+        ctx.moveTo(...pts[i].p);
+        let jj = i + 1;
+        while (jj < pts.length && Math.abs(pts[jj].w - w0) < 0.35) ctx.lineTo(...pts[jj++].p);
+        if (jj === i + 1) ctx.lineTo(...pts[jj++].p);
+        ctx.stroke();
+        i = jj - 1;
+      }
+    }
+    ctx.restore();
+  }
+
+  // A join that leaves along the pen's direction at the end of one letter and arrives along the
+  // direction it starts the next one: the way a real joined hand moves.
+  function flowJoin(a, b, width) {
+    const dx = b.x - a.x;
+    const L = Math.hypot(dx, b.y - a.y);
+    if (dx < -xh * 0.2 || L > xh * 2.4) return; // not a sensible join
+    const ctx = page.ctx;
+    ctx.save();
+    ctx.strokeStyle = o.ink;
+    ctx.globalAlpha = 0.88;
+    ctx.lineWidth = Math.max(0.8, width * 0.85);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.bezierCurveTo(a.x + a.tx * L * 0.45, a.y + a.ty * L * 0.45, b.x - b.tx * L * 0.45, b.y - b.ty * L * 0.45, b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // The pen stroke that joins one letter to the next: a smooth curve that dips slightly, in the
