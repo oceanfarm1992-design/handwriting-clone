@@ -18,7 +18,8 @@ Everything runs in the browser. There is no server and no upload: your handwriti
 5. **Joined writing.** Optional: letters are joined with pen strokes that start where your pen leaves one letter and end where it enters the next (found by thinning each letter to its centre line, so it works for scanned and photographed letters too). Common pairs you write joined on screen (th, he, in…), or that the photo learner finds in your writing, are used as they are. Letters are also gently reshaped so repeats are never identical.
 5. **Paper saver.** One, two or three columns, narrow or minimal margins, an optional line between columns, and `==key point==` highlighter marks. The **Paper saver** preset gives dense two-column revision notes.
 5. **Layout controls.** Paragraph spacing sets the gap between paragraphs, and a page limit shrinks the writing just enough to fit a maximum number of pages (down to 55% of the chosen size).
-5. **Export.** Download a PDF or individual PNG pages.
+5. **Sample checker.** Samples that would print wrongly (a number floating above the line, a "p" without its tail, a capital as small as a lower-case letter, or a sample that looks unlike your other samples of that character) are outlined in red with the reason, left out automatically when a better sample exists, and can be removed in one click.
+5. **Export.** PDFs and page images are drawn at 300 dpi and stored losslessly, so printed letters have clean edges. Download a PDF or individual PNG pages.
 
 ## Try it
 

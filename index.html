@@ -56,6 +56,13 @@
         <button id="demoBtn" type="button">Use this sample</button>
       </div>
       <p id="glyphSummary" class="muted">No handwriting yet.</p>
+      <div id="flagNote" class="flag-note" role="status" hidden>
+        <p id="flagText"></p>
+        <div class="row small">
+          <label class="check-inline"><input type="checkbox" id="skipFlagged" checked> Leave them out when writing (if a better sample exists)</label>
+          <button id="removeFlagged" type="button" class="ghost">Remove flagged samples</button>
+        </div>
+      </div>
       <div id="glyphGrid" class="glyphs"></div>
     </section>
 

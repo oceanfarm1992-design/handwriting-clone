@@ -6,6 +6,7 @@ import { serialize, deserialize, saveLocal, loadLocal, clearLocal } from './prof
 import { makeDemoScan, loadSampleFont, SAMPLE_STYLES } from './demo.js';
 import { initDrawing } from './drawui.js';
 import { initPhoto } from './photoui.js';
+import { metrics, signature, reviewSamples, usableSamples } from './quality.js';
 
 const $ = (id) => document.getElementById(id);
 // style = spacing learned from the user's own writing (saved with the profile)
@@ -142,23 +143,62 @@ async function useDemo() {
   }
 }
 
+// ---- sample checker: flag samples that would print wrongly ----
+const sigCache = new WeakMap();
+function sigOf(g) {
+  if (!sigCache.has(g)) {
+    const { width: w, height: h } = g.canvas;
+    const d = g.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    const a = new Uint8Array(w * h);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+    sigCache.set(g, signature(a, w, h, 255));
+  }
+  return sigCache.get(g);
+}
+
+/** Check every sample; returns a Map from sample to its list of problems (empty = fine). */
+function reviewGlyphs() {
+  const flags = new Map();
+  if (!state.glyphs.length) return flags;
+  const font = buildFont(state.glyphs);
+  const reasons = reviewSamples(state.glyphs.map((g) => ({ ch: g.ch, m: metrics(g, font.xHeight / (g.norm || 1)), sig: sigOf(g) })));
+  state.glyphs.forEach((g, i) => flags.set(g, reasons[i]));
+  return flags;
+}
+
+/** The samples used for writing: flagged ones are left out where a better sample exists. */
+function writingGlyphs() {
+  if (!$('skipFlagged').checked || !state.flags) return state.glyphs;
+  return usableSamples(state.glyphs, state.glyphs.map((g) => state.flags.get(g) || []));
+}
+
 function renderGallery() {
   const grid = $('glyphGrid');
   grid.textContent = '';
+  state.flags = reviewGlyphs();
+  const font = state.glyphs.length ? buildFont(state.glyphs) : null;
   const order = new Map(CHARS.map((c, i) => [c, i]));
   const sorted = [...state.glyphs].sort((a, b) => (order.get(a.ch) ?? 999) - (order.get(b.ch) ?? 999));
   for (const g of sorted) {
+    const problems = state.flags.get(g) || [];
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'tile';
-    b.title = `Remove this "${g.ch}"`;
-    b.setAttribute('aria-label', `Remove this sample of ${g.ch}`);
+    b.className = problems.length ? 'tile flagged' : 'tile';
+    b.title = problems.length ? `${problems.join('; ')}. Click to remove it.` : `Remove this "${g.ch}"`;
+    b.setAttribute('aria-label', `${problems.length ? `Possible problem: ${problems.join('; ')}. ` : ''}Remove this sample of ${g.ch}`);
+    // drawn at its real size on a baseline, so a letter that floats or lacks its tail is visible
     const c = document.createElement('canvas');
     c.width = 44;
     c.height = 44;
-    const s = Math.min(38 / g.canvas.width, 38 / g.canvas.height, 1);
     const ctx = c.getContext('2d');
-    ctx.drawImage(g.canvas, (44 - g.canvas.width * s) / 2, (44 - g.canvas.height * s) / 2, g.canvas.width * s, g.canvas.height * s);
+    const BASE = 30;
+    const s = Math.min(12 / (font.xHeight / (g.norm || 1)), 40 / g.canvas.width);
+    ctx.strokeStyle = 'rgba(70,115,175,0.45)';
+    ctx.beginPath();
+    ctx.moveTo(0, BASE + 0.5);
+    ctx.lineTo(44, BASE + 0.5);
+    ctx.stroke();
+    ctx.drawImage(g.canvas, (44 - g.canvas.width * s) / 2, BASE + (g.yOff - (g.canvas.height - g.pad)) * s, g.canvas.width * s, g.canvas.height * s);
     b.append(c);
     b.addEventListener('click', () => {
       state.glyphs = state.glyphs.filter((x) => x !== g);
@@ -171,6 +211,12 @@ function renderGallery() {
   $('glyphSummary').textContent = state.glyphs.length
     ? `${state.glyphs.length} samples covering ${n} of ${CHARS.length} characters. Click a sample to remove it.`
     : 'No handwriting yet.';
+  const flagged = state.glyphs.filter((g) => (state.flags.get(g) || []).length);
+  $('flagNote').hidden = !flagged.length;
+  if (flagged.length) {
+    const chars = [...new Set(flagged.map((g) => g.ch))].join(' ');
+    $('flagText').textContent = `${flagged.length} sample${flagged.length > 1 ? 's' : ''} may print wrongly (red border; hover or long-press to see why): ${chars}`;
+  }
   $('clearBtn').disabled = !state.glyphs.length;
   $('saveProfileBtn').disabled = !state.glyphs.length;
 }
@@ -227,8 +273,9 @@ function renderPreview() {
     holder.innerHTML = '<p class="empty">Type or upload some text in step 2.</p>';
     return;
   }
-  const font = buildFont(state.glyphs);
+  const font = buildFont(writingGlyphs());
   let { pages, missing, truncated } = renderDocument(text, font, state.opts, state.seed);
+  let usedOpts = state.opts; // the exact settings of what is shown, so printing can redraw it
   // Page limit: shrink the writing (size and line height together) just enough to fit.
   const target = state.opts.fitPages;
   let fitNote = '';
@@ -255,11 +302,13 @@ function renderPreview() {
       fitNote = `Writing shrunk to ${Math.round(f * 100)}% to fit ${target} page${target === 1 ? '' : 's'}.`;
     }
     ({ pages, missing, truncated } = at(f, false));
+    usedOpts = { ...state.opts, xHeight: state.opts.xHeight * f, lineHeight: state.opts.lineHeight * f };
     if (!fitNote) {
       fitNote = `This needs ${pages.length}${truncated ? '+' : ''} pages even at the smallest readable size (${Math.round(MIN * 100)}%), more than your limit of ${target}.`;
     }
   }
   state.pages = pages;
+  state.lastRender = { text, font, opts: usedOpts, seed: state.seed };
   pages.forEach((canvas, i) => {
     const fig = document.createElement('figure');
     canvas.setAttribute('role', 'img');
@@ -271,7 +320,7 @@ function renderPreview() {
     dl.type = 'button';
     dl.className = 'link';
     dl.textContent = 'Save PNG';
-    dl.addEventListener('click', async () => saveBlob(await canvasToBlob(canvas), `handwritten-page-${i + 1}.png`));
+    dl.addEventListener('click', () => savePagePng(i));
     cap.append(label, dl);
     fig.append(canvas, cap);
     holder.append(fig);
@@ -283,21 +332,44 @@ function renderPreview() {
   $('warn').textContent = notes.join(' ');
 }
 
+// Print quality: the pages are drawn again at 300 dpi (twice the preview) and stored as lossless
+// PNG, so printed letters have clean edges with no blur or JPEG smudges around the strokes.
+const PRINT_RATIO = 2;
+function renderForPrint(onPage) {
+  const r = state.lastRender;
+  if (!r) return 0;
+  let n = 0;
+  renderDocument(r.text, r.font, { ...r.opts, pixelRatio: PRINT_RATIO, onPage: (c, i) => (n++, onPage(c, i)) }, r.seed);
+  return n;
+}
+
 async function exportPdf() {
   if (!state.pages.length) return;
-  setStatus('Building PDF…');
+  setStatus('Building a print-quality PDF (300 dpi)…');
+  await wait();
   try {
     const jsPDF = await loadJsPdf();
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-    state.pages.forEach((c, i) => {
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    renderForPrint((c, i) => {
       if (i) pdf.addPage();
-      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+      pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, 210, 297, undefined, 'FAST');
     });
     pdf.save('handwritten.pdf');
-    setStatus('PDF saved.', 'ok');
+    setStatus('Print-quality PDF saved (300 dpi). Print at 100% / "Actual size" for the sharpest result.', 'ok');
   } catch (e) {
     setStatus(e.message, 'error');
   }
+}
+
+async function savePagePng(index) {
+  setStatus('Saving page at 300 dpi…');
+  await wait();
+  let blob = null;
+  renderForPrint((c, i) => {
+    if (i === index) blob = canvasToBlob(c);
+  });
+  if (blob) saveBlob(await blob, `handwritten-page-${index + 1}.png`);
+  setStatus('Page saved as a 300 dpi PNG.', 'ok');
 }
 
 // Apply spacing measured from the user's own writing (on-screen sentences or a photo).
@@ -323,6 +395,13 @@ function init() {
     if (files.length) await handleScans(files);
   });
   $('demoBtn').addEventListener('click', useDemo);
+  $('skipFlagged').addEventListener('change', () => schedulePreview(0));
+  $('removeFlagged').addEventListener('click', () => {
+    const before = state.glyphs.length;
+    state.glyphs = state.glyphs.filter((g) => !(state.flags.get(g) || []).length);
+    onGlyphsChanged();
+    setStatus(`Removed ${before - state.glyphs.length} flagged samples. Write those characters again on screen to replace them.`, 'ok');
+  });
   $('clearBtn').addEventListener('click', () => {
     state.glyphs = [];
     state.style = {};
